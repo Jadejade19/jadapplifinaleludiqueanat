@@ -38,9 +38,14 @@ function loadPack(p) {
     document.head.appendChild(s);
   }));
 }
-const imgTags = keys => (keys || []).filter(k => D.imgs && D.imgs[k]).map(k => `<img class="pic" data-k="${esc(k)}" alt="Image du cours" loading="lazy">`).join("");
+const isWeb = k => String(k).startsWith("web-");
+const imgTags = keys => (keys || []).filter(k => D.imgs && D.imgs[k]).map(k => `<span class="picw ${isWeb(k) ? "out" : "in"}"><em>${isWeb(k) ? "🌐 Hors cours · Wikimedia Commons" : "📑 Ton cours"}</em><img class="pic" data-k="${esc(k)}" alt="${isWeb(k) ? "Image ajoutée, hors cours" : "Image du cours"}" loading="lazy"></span>`).join("");
 // image ajoutée (Wikimedia Commons), hors cours
-const webImg = f => !f || !f.web || !D.imgs[f.web[0]] ? "" : `<figure class="web"><div class="pics">${imgTags([f.web[0]])}</div><figcaption class="small">${f.web[1] ? "Planche d'ensemble de la région ou de l'os : la structure n'y est pas toujours légendée. " : ""}Image ajoutée (hors cours) · Wikimedia Commons : <a href="https://commons.wikimedia.org/wiki/File:${encodeURIComponent((D.imgCap[f.web[0]] || "").split(" – ")[0])}" target="_blank" rel="noopener">${esc(D.imgCap[f.web[0]] || "")}</a></figcaption></figure>`;
+const webCredit = k => `<a href="https://commons.wikimedia.org/wiki/File:${encodeURIComponent((D.imgCap[k] || "").split(" – ")[0])}" target="_blank" rel="noopener">${esc(D.imgCap[k] || "")}</a>`;
+const webImg = f => { if (!f || !f.web || !D.imgs[f.web[0]]) return ""; const L = [f.web[0], ...(f.webx || [])].filter(k => D.imgs[k]);
+  return `<figure class="web"><div class="pics">${imgTags(L)}</div><figcaption class="small"><b>⚠ Cette image ne vient pas de ton cours.</b> ${f.web[1] ? "Planche d'ensemble de la région : la structure n'y est pas toujours légendée. " : ""}Origine : Wikimedia Commons, ${L.map(webCredit).join(" ; ")}</figcaption></figure>`; };
+// muscles cités par une fiche « Insertions » ou « Muscles : … », avec leur image
+const galImg = f => !f || !f.gal ? "" : `<div class="mgal">${f.gal.filter(n => D.fiches[n]).map(n => `<a href="#/fiche/${encodeURIComponent(n)}">${D.fiches[n].web ? imgTags([D.fiches[n].web[0]]).replace('class="pic"', 'class="pic nozoom"') : ""}<span>${esc(cap(n))}</span></a>`).join("")}</div><p class="small">⚠ Images des muscles : hors cours (origine et auteur dans la fiche de chaque muscle).</p>`;
 function hydrateImgs() {
   document.querySelectorAll("img.pic[data-k]:not([src])").forEach(el => {
     if (el.closest("details:not([open])")) return; // chargée seulement quand on ouvre le volet
@@ -61,7 +66,7 @@ const K_OVR = "revanat-corrections-v1"; let OVR = load(K_OVR, {}); // correction
 const applyOvr = () => { for (const id in OVR) { const q = BY_ID[id]; if (q) { q.q = OVR[id].q; q.a = OVR[id].a; if (q.m) { q.m = q.a.split(" ; "); q.d = q.d.filter(x => !q.m.includes(x)); } else q.d = q.d.filter(x => x !== q.a); } } };
 applyOvr();
 // ======================== Widget Android (appli « Widget Révisions anat ») ========================
-const K_WLAST = "revanat-widget-last-v1"; // date de la dernière réponse du widget déjà importée
+const K_WLAST = "revanat-widget-last-v1", K_WLAST2 = "revanat-widget-last-v2", WIDGET_PKG = "fr.jadanat.anatwidget"; // date de la dernière réponse du widget déjà importée
 function qsHash() { // empreinte de la liste des questions, identique côté widget
   let h = 0x811c9dc5;
   for (let i = 0; i < QS.length; i++) { const s = (i ? "\n" : "") + QS[i].id; for (let j = 0; j < s.length; j++) { h ^= s.charCodeAt(j); h = Math.imul(h, 0x01000193) >>> 0; } }
@@ -73,7 +78,7 @@ function widgetLink() { // lien qui ouvre le widget et lui donne les QCM déjà 
   let bin = ""; bytes.forEach(b => { bin += String.fromCharCode(b); });
   const d = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const back = location.href.split("#")[0] + "#/widget";
-  return `intent://sync?h=${qsHash()}&w=${load(K_WLAST, 0)}&d=${d}#Intent;scheme=revanat;package=fr.jadanat.revwidget;S.browser_fallback_url=${encodeURIComponent(back)};end`;
+  return `intent://sync?h=${qsHash()}&w=${load(K_WLAST2, 0)}&u=${encodeURIComponent(location.href.split("#")[0])}&d=${d}#Intent;scheme=revanat;package=${WIDGET_PKG};S.browser_fallback_url=${encodeURIComponent(back)};end`;
 }
 // Réponses données hors de cette page (widget, autre version du site) : elles comptent aussi pour les animaux, croquettes, niveaux…
 const K_SEEN = "revanat-vu-v1"; let SEEN = null, NO_RUN = false;
@@ -93,7 +98,10 @@ function importWidget(payload) { // réponses envoyées par le widget (#/sync/<b
   let data;
   try { data = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(payload.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0)))); }
   catch { return "Lien du widget illisible."; }
-  const last = load(K_WLAST, 0); let max = last, n = 0, ok = 0;
+  const v2 = data.v === 2, KL = v2 ? K_WLAST2 : K_WLAST; // v2 : nouveau widget, qui envoie des numéros de question
+  if (v2 && data.h !== String(qsHash())) return "Le widget n'a pas la même liste de questions que cette application : réinstalle le widget.";
+  if (v2) data.r = (data.r || []).map(([i, r, t]) => [QS[i] && QS[i].id, r, t]);
+  const last = load(KL, 0); let max = last, n = 0, ok = 0;
   for (const [id, r, t] of (data.r || [])) {
     if (!BY_ID[id] || !(t > last)) continue;
     const p = PROG[id] || { n: 0, ok: 0 };
@@ -101,7 +109,7 @@ function importWidget(payload) { // réponses envoyées par le widget (#/sync/<b
     if (!(p.t > t)) { p.r = r ? 1 : 0; p.t = t; }
     PROG[id] = p; n++; if (r) ok++; if (t > max) max = t;
   }
-  save(K_PROG, PROG); save(K_WLAST, max);
+  save(K_PROG, PROG); save(KL, max);
   const won = catchUp().won;
   return n ? `✔ ${plural(n, "réponse")} du widget ${n > 1 ? "enregistrées" : "enregistrée"} : ${ok} dans « Déjà eu bon », ${n - ok} dans « Échecs ». ${won}` : "Ces réponses du widget étaient déjà enregistrées.";
 }
@@ -111,7 +119,7 @@ function viewWidget() {
   return `<section class="card"><h2>📲 Widget Android</h2>
       ${msg ? `<p class="big">${esc(msg)}</p>` : ""}
       <p class="small">Touche « Mettre à jour le widget » : il saura quels QCM tu as déjà faits ici et ne te proposera que des structures pas encore interrogées.</p>
-      <div class="actions">${widgetBtn()}<a class="btn" href="#/g">Accueil</a></div></section>`;
+      <div class="actions">${widgetBtn()}<a class="btn" href="#/g">Accueil</a><a class="btn" href="#/menagerie">Ménagerie</a><a class="btn" href="#/corps">Corps</a></div></section>`;
 }
 let SESSION = null;
 let MSG = "";
@@ -211,7 +219,7 @@ function viewFiche(name) {
   const back = TABS.some(t => t.cat === f.cat) ? `#/rev/${f.cat}` : "#/fiches";
   return `<p><a href="${back}">← Révision ${esc(CAT_PLURAL[f.cat] || "")}</a></p>
     <section class="card"><span class="tag">${CAT_LABEL[f.cat]} · ${REG_LABEL[f.reg] || ""}</span>
-      <h2 style="margin-top:8px">${esc(cap(name))}</h2>${webImg(f)}${ficheBody(name)}</section>`;
+      <h2 style="margin-top:8px">${esc(cap(name))}</h2>${webImg(f)}${galImg(f)}${ficheBody(name)}</section>`;
 }
 
 // ======================== Révision ========================
@@ -280,7 +288,7 @@ function viewNx(id, kind, sub) {
       ${sub && D.nerfs[sub] ? `<div class="palpa" style="margin-top:12px">${nerveCard(sub, true)}</div>` : ""}
     </section>` : ""}
     <section class="card"><h2>Description complète${f ? "" : " (cours)"}</h2>
-      ${f ? ficheBody(n.fiche) : ""}
+      ${webImg(f)}${f ? ficheBody(n.fiche) : ""}
       ${n.imgs && n.imgs.length && !(f && f.imgs && f.imgs.length) ? `<div class="pics big">${imgTags(n.imgs)}</div>` : ""}
     </section>`;
 }
@@ -309,7 +317,7 @@ function viewSettings() {
       <ul class="facts">${Object.entries(D.sources).map(([k, v]) => `<li>${esc(v)} <span class="small">— ${bySrc[k] || 0} questions</span></li>`).join("")}</ul>
       <p class="small">Banque générée le ${esc(D.version)} · ${QS.length} QCM · ${Object.keys(D.fiches).length} fiches.</p></section>
     <section class="card"><h2>Hors ligne</h2><p class="big" id="offst">Vérification…</p>
-      <p class="small">Les questions, les fiches, le jeu et tous les dessins marchent sans internet dès la première ouverture. Les photos de cours et les tableaux se gardent quand tu les ouvres : touche ce bouton une fois, avec internet, pour tout avoir (environ 55 Mo).</p>
+      <p class="small">Les questions, les fiches, le jeu et tous les dessins du jeu marchent sans internet dès la première ouverture. Les photos de cours, les images ajoutées et les tableaux se gardent quand tu les ouvres : touche ce bouton une fois, avec internet, pour tout avoir (environ 60 Mo).</p>
       <button data-act="dlImgs">Tout télécharger pour le hors ligne</button></section>
     <section class="card"><h2>Remarques sur tes cours</h2>
       <p class="small">Points relevés en préparant les questions. Quand deux cours se contredisent, la notion n'est pas interrogée.</p>
@@ -518,9 +526,9 @@ const STAGES = [[0, "tout jeune", .78], [3, "petit", .92], [8, "adulte", 1.06], 
 const stageOf = n => { let k = 0; STAGES.forEach((s, i) => { if (n >= s[0]) k = i; }); return k; };
 const petZ = a => Math.round(ART.size(a) * STAGES[stageOf((PET.care[a.id] || {}).fedDays || 0)][2] * 100) / 100;
 const babyZ = (id, i) => { const since = Math.max(0, ((PET.care[id] || {}).fedDays || 0) - FEED_FOR_BABY * (i + 1)); return Math.round(ART.size(ANIMAL_BY_ID[id]) * BSTAGES.filter(s => since >= s[0]).pop()[1] * 100) / 100; };
-const petSvg = (a, cls = "pet-svg", o = {}) => a ? ART.renderSvg(a, cls, { z: petZ(a), ...o }, a.id === PET.companion && !o.bare ? gearOn() : null, esc) : "";
+const petSvg = (a, cls = "pet-svg", o = {}) => a ? ART.renderSvg(a, cls, { z: o.stage ? petZ(a) : 1, ...o }, a.id === PET.companion && !o.bare ? gearOn() : null, esc) : "";
 const gearThumb = id => ART.renderSvg(ANIMAL_BY_ID[PET.companion] || ART.byId["chat-tigre-roux"], "thumb", {}, [id], esc);
-const babiesSvg = (id, cls = "pet-svg baby") => Array.from({ length: (PET.care[id] || {}).babies || 0 }, (_, i) => petSvg(ANIMAL_BY_ID[id], cls, { isBaby: true, babyN: i, z: babyZ(id, i) })).join("");
+const babiesSvg = (id, cls = "pet-svg baby", stage = false) => Array.from({ length: (PET.care[id] || {}).babies || 0 }, (_, i) => petSvg(ANIMAL_BY_ID[id], cls, { isBaby: true, babyN: i, z: stage ? babyZ(id, i) : 1 })).join("");
 function toast(html, kind = "") { document.querySelectorAll(".toast").forEach(x => x.remove()); const t = document.createElement("div"); t.className = "toast " + kind; t.setAttribute("role", "status"); t.innerHTML = html; document.body.appendChild(t); setTimeout(() => t.classList.add("out"), 2600); setTimeout(() => t.remove(), 3100); }
 
 // le compagnon vient parler à l'écran
@@ -645,7 +653,7 @@ function viewQuiz() {
       ${good ? "" : `<div class="expl"><b>Réponse attendue :</b> ${esc(cap(q.m ? S.opts.filter(o => q.m.includes(o)).join(" ; ") : q.a))}</div>`}
       ${q.m && q.m.length > S.opts.filter(o => q.m.includes(o)).length ? `<div class="expl"><b>Liste complète du cours :</b> ${esc(q.a)}</div>` : ""}
       ${q.x ? `<div class="expl">${esc(q.x)}</div>` : ""}<div class="small src">📄 Source : ${esc(srcText(q.src))}</div>
-      ${f ? `<details><summary>Fiche complète : ${esc(cap(q.s))}</summary>${trajets(q.s)}${ficheList(f)}${palpaBlocks(f)}${f.imgs && f.imgs.length ? `<details><summary>📑 Photos du cours (${f.imgs.length})</summary><div class="pics big">${imgTags(f.imgs)}</div></details>` : ""}</details>` : ""}
+      ${f ? `<details><summary>Fiche complète : ${esc(cap(q.s))}</summary>${webImg(f)}${galImg(f)}${trajets(q.s)}${ficheList(f)}${palpaBlocks(f)}${f.imgs && f.imgs.length ? `<details><summary>📑 Photos du cours (${f.imgs.length})</summary><div class="pics big">${imgTags(f.imgs)}</div></details>` : ""}</details>` : ""}
       <div class="actions sticky"><button class="primary grow" data-act="next" id="nextBtn">${S.pos + 1 < S.ids.length ? "Question suivante →" : "Voir le bilan"}</button></div>`;
   }
   const done = S.ok + S.ko, n = S.ids.length;
@@ -694,14 +702,15 @@ const LOCK = `<svg viewBox="0 0 60 60" class="lockico" aria-hidden="true"><path 
 function giftPanel() {
   const cats = Object.entries(GIFT.CATS), list = GIFT.REWARDS.filter(r => r.cat === TAB2 && DAILY.got.includes(r.id)), cur = DAILY.equipped[TAB2];
   const prev = r => r.cat === "decor" ? GIFT.sceneThumb(r.v) : persoSvg({ hair: r.v, worn: [], crop: "tete", cls: "thumb" });
-  return `<section class="card"><h2>Coiffures et décors</h2><p class="small">Un offert au hasard chaque jour dès 5 bonnes réponses, ou à acheter tout de suite. ${DAILY.got.length}/${GIFT.REWARDS.length} obtenus · 💎 ${wallet().toLocaleString("fr")} XP à dépenser</p>
+  return `<details class="card fold" id="gifts" ${OPENS.gifts ? "open" : ""}><summary>Coiffures et décors <span class="small">${DAILY.got.length}/${GIFT.REWARDS.length}</span></summary><p class="small">Un offert au hasard chaque jour dès 5 bonnes réponses, ou à acheter tout de suite. ${DAILY.got.length}/${GIFT.REWARDS.length} obtenus · 💎 ${wallet().toLocaleString("fr")} XP à dépenser</p>
     <div class="chips">${cats.map(([k, l]) => `<button data-act="gtab" data-k="${k}" class="${TAB2 === k ? "on" : ""}">${l}</button>`).join("")}</div>
     <div class="accgrid gifts"><button class="acc ${cur ? "" : "on"}" data-act="gift" data-id=""><span class="ath">${TAB2 === "coiffure" ? persoSvg({ hair: "long", worn: [], crop: "tete", cls: "thumb" }) : GIFT.sceneThumb("none")}</span><b>${TAB2 === "coiffure" ? "Cheveux longs" : "Décor simple"}</b><span class="st">${cur ? "Choisir" : "✔ Choisi"}</span></button>
     ${list.map(r => `<button class="acc ${cur === r.id ? "on" : ""}" data-act="gift" data-id="${r.id}"><span class="ath">${prev(r)}</span><b>${esc(r.name)}</b><span class="st">${cur === r.id ? "✔ Choisi" : "Choisir"}</span></button>`).join("")}
-    ${GIFT.REWARDS.filter(r => r.cat === TAB2 && !DAILY.got.includes(r.id)).map(r => `<button class="acc" data-act="giftBuy" data-id="${r.id}"><span class="ath">${prev(r)}</span><b>${esc(r.name)}</b><span class="st ${wallet() < r.price ? "poor" : ""}">${r.price} XP</span></button>`).join("")}</div></section>`;
+    ${GIFT.REWARDS.filter(r => r.cat === TAB2 && !DAILY.got.includes(r.id)).map(r => `<button class="acc" data-act="giftBuy" data-id="${r.id}"><span class="ath">${prev(r)}</span><b>${esc(r.name)}</b><span class="st ${wallet() < r.price ? "poor" : ""}">${r.price} XP</span></button>`).join("")}</div></details>`;
 }
 // ---------- Garde-robe : boutique et essayage ----------
 let WTAB = "top";
+const OPENS = { shop: false, gifts: false }; // sections déroulées
 const itemOn = i => FABCATS.includes(i.cat) ? WARD.fab[i.cat] === i.id : WARD.eq[i.s] === i.id;
 function useItem(i, on = !itemOn(i)) { if (FABCATS.includes(i.cat)) { if (on) WARD.fab[i.cat] = i.id; else delete WARD.fab[i.cat]; save(K_WARD, WARD); } else wear(i, on); }
 function tryOn(i, o = {}) { // le personnage portant cet article
@@ -711,9 +720,9 @@ function tryOn(i, o = {}) { // le personnage portant cet article
 function shopPanel() {
   const L = level(xp()), W = wallet(), list = SHOP.items.filter(i => i.cat === WTAB), own = list.filter(i => WARD.got.includes(i.id)).length, free = FABCATS.includes(WTAB);
   const card = i => { const got = WARD.got.includes(i.id), on = got && itemOn(i), lock = !got && L < i.lvl; return `<button class="acc ${on ? "on" : ""} ${lock ? "tooLow" : ""}" data-act="wItem" data-id="${i.id}" ${lock ? "disabled" : ""}><span class="ath">${tryOn(i)}</span><b>${esc(i.name)}</b><span class="st ${!got && !lock && W < i.price ? "poor" : ""}">${on ? "✔ Porté" : got ? "Mettre" : lock ? `Niveau ${i.lvl}` : `${i.price} XP`}</span></button>`; };
-  return `<section class="card" id="shop"><h2>Ma garde-robe</h2><p class="wal">💎 <b>${W.toLocaleString("fr")} XP</b> à dépenser</p><p class="small">Une bonne réponse rapporte 10 XP à dépenser (5 si la question était déjà réussie), un accessoire 25. Acheter ne fait jamais baisser ton niveau. ${WARD.got.length}/${SHOP.items.length} articles.</p>
+  return `<details class="card fold" id="shop" ${OPENS.shop ? "open" : ""}><summary>Ma garde-robe <span class="small">${WARD.got.length}/${SHOP.items.length} · 💎 ${W.toLocaleString("fr")} XP</span></summary><p class="wal">💎 <b>${W.toLocaleString("fr")} XP</b> à dépenser</p><p class="small">Une bonne réponse rapporte 10 XP à dépenser (5 si la question était déjà réussie), un accessoire 25. Acheter ne fait jamais baisser ton niveau. ${WARD.got.length}/${SHOP.items.length} articles.</p>
     <div class="chips">${Object.entries(SHOP.CATS).map(([k, [l]]) => `<button data-act="wTab" data-k="${k}" class="${WTAB === k ? "on" : ""}">${l}</button>`).join("")}</div><p class="small">${own}/${list.length} dans cette catégorie</p>
-    <div class="accgrid">${free ? `<button class="acc ${WARD.fab[WTAB] ? "" : "on"}" data-act="wFree"><span class="ath">${CORPS.svg({ look: BODY.look, hair: eqv("coiffure") || "long", crop: "thorax", vb: SHOP.vb(list[0]), cls: "thumb", worn: [], ...fabOpts({ ...WARD.fab, [WTAB]: null }) })}</span><b>${WTAB[0] === "d" ? "Sans dessin" : "Couleur de base"}</b><span class="st">${WARD.fab[WTAB] ? "Mettre" : "✔ Porté"}</span></button>` : ""}${list.slice().sort((a, b) => WARD.got.includes(b.id) - WARD.got.includes(a.id) || a.lvl - b.lvl || a.price - b.price).map(card).join("")}</div></section>`;
+    <div class="accgrid">${free ? `<button class="acc ${WARD.fab[WTAB] ? "" : "on"}" data-act="wFree"><span class="ath">${CORPS.svg({ look: BODY.look, hair: eqv("coiffure") || "long", crop: "thorax", vb: SHOP.vb(list[0]), cls: "thumb", worn: [], ...fabOpts({ ...WARD.fab, [WTAB]: null }) })}</span><b>${WTAB[0] === "d" ? "Sans dessin" : "Couleur de base"}</b><span class="st">${WARD.fab[WTAB] ? "Mettre" : "✔ Porté"}</span></button>` : ""}${list.slice().sort((a, b) => WARD.got.includes(b.id) - WARD.got.includes(a.id) || a.lvl - b.lvl || a.price - b.price).map(card).join("")}</div></details>`;
 }
 function buyModal(i) {
   const W = wallet(), can = W >= i.price, miss = i.price - W;
@@ -749,9 +758,9 @@ function viewCorps() {
     <section class="cadre">${art ? `<button class="nav" data-act="artNav" data-d="-1" aria-label="Tableau précédent" ${TAB.got.length > 1 ? "" : "disabled"}>‹</button><button class="cadrein" data-act="galOpen" aria-label="Changer de tableau"><img class="artimg" data-art="${art.id}" alt="${esc(art.name)}"><span><b>${esc(art.name)}</b><span class="small">${esc(art.by)}</span></span></button><button class="nav" data-act="artNav" data-d="1" aria-label="Tableau suivant" ${TAB.got.length > 1 ? "" : "disabled"}>›</button>` : `<span class="small">Ton premier tableau arrive demain</span>`}</section></div>
   <section class="card"><div class="lvrow">${lvBlock()}</div>${dailyStrip()}</section>
   <section class="card stagecard"><div class="subtabs">${[["f", "Face"], ["b", "Dos"]].map(([k, l]) => `<button data-act="bview" data-v="${k}" class="${v === k ? "on" : ""}">${l}</button>`).join("")}</div>
-    <div class="stage">${persoSvg({ view: v, behind: GIFT.scene(eqv("decor") || "none"), tint: BODY.tint, col: zcol, click: true, names: ZONES, sel: ZOPEN, vb: "-40 -62 480 716" })}
+    <div class="stage ${comp ? "duo2" : ""}">${persoSvg({ view: v, behind: GIFT.scene(eqv("decor") || "none"), tint: BODY.tint, col: zcol, click: true, names: ZONES, sel: ZOPEN, vb: comp ? "-10 -62 640 716" : "-40 -62 480 716" })}
       ${art ? `<div class="hang">${GIFT.painting(art.id, 74)}</div>` : ""}
-      ${comp ? `<div class="stagepet">${petSvg(comp, "pet-svg", MOOD ? { mood: MOOD } : {})}${babiesSvg(comp.id)}</div>` : ""}</div>
+      ${comp ? `<div class="stagepet">${petSvg(comp, "pet-svg", { stage: true, ...(MOOD ? { mood: MOOD } : {}) })}<span class="stagebabies">${babiesSvg(comp.id, "pet-svg baby", true)}</span></div>` : ""}</div>
     <div class="actions center"><button class="sm" data-act="tint">${BODY.tint ? "Masquer les couleurs" : "Voir les couleurs"}</button><button class="sm" data-act="rnd" ${BODY.got.length + WARD.got.length ? "" : "disabled"}>Tenue au hasard</button><button class="sm" data-act="off" ${worn().length ? "" : "disabled"}>Tout retirer</button></div>
     <div class="legend center"><span><i style="background:${BODY.look.skin}"></i>à travailler</span><span><i style="background:hsl(262 78% 74%)"></i>début</span><span><i style="background:hsl(201 78% 67%)"></i>moitié</span><span><i style="background:hsl(140 78% 60%)"></i>presque</span><span><i style="background:#fbc93d"></i>100 %</span></div>
     <p class="small center">Touche une zone pour voir ta progression et l'habiller · ${BODY.got.length}/${ACC.length} accessoires</p></section>
@@ -830,7 +839,7 @@ function render() {
 async function offlineInfo() { // état réel du stockage hors ligne
   const el = document.getElementById("offst"); if (!el) return;
   try {
-    const packs = [...new Set([...Object.values(D.imgs || {}), ...Object.values(GIFT.TAB).map(a => a.pack)])], c = await caches.open("jadjeudanat-v3"), has = new Set((await c.keys()).map(r => new URL(r.url).pathname.split("/").pop()));
+    const packs = [...new Set([...Object.values(D.imgs || {}), ...Object.values(GIFT.TAB).map(a => a.pack)])], c = await caches.open("jadjeudanat-v5"), has = new Set((await c.keys()).map(r => new URL(r.url).pathname.split("/").pop()));
     const core = ["app.js", "questions.js", "style.css"].every(f => has.has(f)), n = packs.filter(p => has.has(p + ".js")).length;
     el.textContent = !core ? "Application pas encore enregistrée : rouvre-la une fois avec internet." : n === packs.length ? "✔ Tout est disponible hors ligne." : `✔ Application disponible hors ligne · photos : ${n}/${packs.length} paquets téléchargés.`;
   } catch { el.textContent = "Hors ligne indisponible dans ce navigateur."; }
@@ -912,7 +921,7 @@ const ACT = {
   reset: () => { if (!confirm("Effacer toute ta progression de QCM et tes accessoires ? C'est définitif (sauf si tu as un export). Tes animaux sont gardés.")) return; PROG = {}; save(K_PROG, PROG); markSeen(); BODY.got = []; BODY.eq = {}; save(K_BODY, BODY); PET.gear.lv = 1; PET.kibLv = 1; PET.run = PET.bad = 0; WARD.spent = 0; save(K_WARD, WARD); save(K_PET, PET); SESSION = null; saveSession(); MSG = "Progression effacée."; render(); }
 };
 document.addEventListener("click", e => {
-  if (e.target.matches("img.pic[src]")) { const z = document.createElement("div"); z.id = "zoom"; z.innerHTML = `<img src="${e.target.src}" alt="">`; z.onclick = () => z.remove(); document.body.appendChild(z); return; }
+  if (e.target.matches("img.pic[src]:not(.nozoom)")) { const z = document.createElement("div"); z.id = "zoom"; const zk = e.target.dataset.k; z.innerHTML = `<img src="${e.target.src}" alt="">${zk ? `<p class="zsrc ${isWeb(zk) ? "out" : ""}">${isWeb(zk) ? "🌐 HORS COURS · Wikimedia Commons : " + esc((D.imgCap || {})[zk] || "") : "📑 Image de ton cours"}</p>` : ""}`; z.onclick = () => z.remove(); document.body.appendChild(z); return; }
   const el = e.target.closest("[data-act]"); if (!el || !ACT[el.dataset.act] || el.disabled) return;
   e.preventDefault(); ACT[el.dataset.act](el);
 });
@@ -954,7 +963,7 @@ document.addEventListener("keydown", e => {
 // reprise de la série laissée en cours, même après fermeture de l'application
 { const s = load(K_SESS, null); if (s && Array.isArray(s.ids) && s.ids.every(id => BY_ID[id]) && s.pos < s.ids.length) SESSION = s; }
 window.addEventListener("hashchange", render);
-document.addEventListener("toggle", e => { if (e.target.id === "gal") GALOPEN = e.target.open; if (e.target.open) { hydrateImgs(); hydrateArts(); } }, true);
+document.addEventListener("toggle", e => { if (e.target.id === "gal") GALOPEN = e.target.open; if (e.target.id in OPENS) OPENS[e.target.id] = e.target.open; if (e.target.open) { hydrateImgs(); hydrateArts(); } }, true);
 if (WARD.spent === null) WARD.spent = Math.max(0, xp() - START_XP); save(K_WARD, WARD);
 SEEN = load(K_SEEN, null); if (!Array.isArray(SEEN)) markSeen();
 const retro = syncLevel(); save(K_DAILY, DAILY); save(K_TAB, TAB);

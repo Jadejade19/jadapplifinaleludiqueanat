@@ -1,6 +1,6 @@
-const CACHE = "jadjeudanat-v3";
+const CACHE = "jadjeudanat-v5";
 const FILES = ["./", "./index.html", "./style.css", "./app.js", "./corps-art.js", "./accessoires-art.js", "./animals-data.js", "./animals-data2.js", "./animals-data3.js", "./animals-art.js", "./animals-rates.js", "./compagnon-art.js", "./tableaux-data.js", "./cadeaux-art.js", "./garde-robe-art.js",
-  "./questions.js", "./manifest.json", "./nunito.woff2", "./icon.svg", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./apple-touch-icon.png"];
+  "./questions.js", "./fiches-images.js", "./manifest.json", "./nunito.woff2", "./icon.svg", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.allSettled(FILES.map(f => c.add(new Request(f, { cache: "reload" }))))));
