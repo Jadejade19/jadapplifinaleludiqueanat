@@ -86,11 +86,11 @@ const totals = () => { let ok = 0, ko = 0; for (const id in PROG) { const p = PR
 const markSeen = () => { SEEN = totals(); save(K_SEEN, SEEN); };
 function catchUp() {
   const [o, k] = totals(), g = Math.min(400, Math.max(0, o - SEEN[0])), b = Math.min(400, Math.max(0, k - SEEN[1])); markSeen(); if (!g && !b) return { n: 0, won: "" };
-  const run = PET.run, bad = PET.bad, got = { pet: 0, rate: 0, kib: 0, gift: 0 }; NO_RUN = true;
+  const run = PET.run, bad = PET.bad, got = { pet: 0, rate: 0, kid: 0, kib: 0, gift: 0 }; NO_RUN = true;
   for (let i = 0; i < b; i++) { const r = badAnswer(); if (r.rate) got.rate++; }
-  for (let i = 0; i < g; i++) { const r = goodAnswer(); if (r.pet) got.pet++; if (r.kibble) got.kib++; if (r.gift) got.gift++; }
+  for (let i = 0; i < g; i++) { const r = goodAnswer(); if (r.pet) got.pet++; if (r.kibble) got.kib++; if (r.kib50) got.kib += KIB50; if (r.kid) got.kid++; if (r.gift) got.gift++; }
   NO_RUN = false; PET.run = run; PET.bad = bad; save(K_PET, PET); const acc = syncUnlocks().length, gear = syncLevel().length, np = got.pet + got.rate;
-  const L = [np && plural(np, "animal", "animaux"), got.kib && plural(got.kib, "croquette"), got.gift && "1 cadeau", acc && plural(acc, "accessoire"), gear && plural(gear, "accessoire") + " de compagnon"].filter(Boolean);
+  const L = [np && plural(np, "animal", "animaux"), got.kid && plural(got.kid, "enfant"), got.kib && plural(got.kib, "croquette"), got.gift && "1 cadeau", acc && plural(acc, "accessoire"), gear && plural(gear, "accessoire") + " de compagnon"].filter(Boolean);
   return { n: g + b, won: L.length ? `Tu as gagné : ${L.join(", ")} !` : "" };
 }
 function importWidget(payload) { // réponses envoyées par le widget (#/sync/<base64>)
@@ -121,6 +121,7 @@ function viewWidget() {
       <p class="small">Touche « Mettre à jour le widget » : il saura quels QCM tu as déjà faits ici et ne te proposera que des structures pas encore interrogées.</p>
       <div class="actions">${widgetBtn()}<a class="btn" href="#/g">Accueil</a><a class="btn" href="#/menagerie">Ménagerie</a><a class="btn" href="#/corps">Corps</a></div></section>`;
 }
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1, STANDALONE = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true, CNAME = "jadjeudanat-v19";
 let SESSION = null;
 let MSG = "";
 
@@ -293,6 +294,7 @@ function viewNx(id, kind, sub) {
     </section>`;
 }
 
+let INSTALL = null; addEventListener("beforeinstallprompt", e => { e.preventDefault(); INSTALL = e; if (route()[0] === "reglages") render(); }); addEventListener("appinstalled", () => { INSTALL = null; if (route()[0] === "reglages") render(); });
 function viewSettings() {
   const all = stats(QS), nf = Object.keys(FLAGS).length;
   const msg = MSG; MSG = "";
@@ -304,9 +306,13 @@ function viewSettings() {
       <div class="actions"><button class="primary" data-act="export">Exporter ma progression</button><button data-act="import">Importer</button>
       <input type="file" id="importFile" accept="application/json,.json" class="hidden"></div>
       <div class="msg">${esc(msg)}</div></section>
-    <section class="card"><h2>📲 Widget Android</h2>
+    <section class="card"><h2>📱 Installer l'application</h2>
+      <p class="small">${STANDALONE() ? "✔ L'application est installée sur cet appareil." : IOS ? "Sur iPhone et iPad : ouvre cette page dans Safari, touche le bouton Partager (le carré avec une flèche vers le haut), puis « Sur l'écran d'accueil » et « Ajouter ». Ouvre ensuite l'application avec sa nouvelle icône : elle marche sans internet. Installe-la avant de commencer à jouer, car sur iPhone l'application installée ne reprend pas la progression de Safari (sinon, exporte puis importe-la)." : INSTALL ? "Sur Android, elle s'installe en une touche et marche ensuite sans internet." : "Sur Android : ouvre cette page dans Chrome, touche ⋮ en haut à droite, puis « Installer l'application » (ou « Ajouter à l'écran d'accueil »). Elle marche ensuite sans internet."}</p>
+      <p class="small">Chaque personne qui l'installe a sa propre progression, ses animaux et sa garderie.</p>
+      <div class="actions">${INSTALL && !STANDALONE() ? `<button class="primary" data-act="install">Installer sur cet appareil</button>` : ""}<button data-act="share">Partager l'application</button></div></section>
+    ${IOS ? "" : `<section class="card"><h2>📲 Widget Android</h2>
       <p class="small">Les réponses données sur le widget arrivent ici quand tu touches « ↻ Envoyer à l'appli » sur le widget. Dans l'autre sens, ce bouton envoie ta progression au widget.</p>
-      <div class="actions">${widgetBtn()}</div></section>
+      <div class="actions">${widgetBtn()}</div></section>`}
     <section class="card"><h2>Questions signalées (${nf})</h2>
       <p class="small">Si une question te paraît fausse, touche « 🚩 Signaler » en haut de la question. Tu retrouves la liste ici pour la faire corriger.</p>
       ${nf ? `<div class="list">${Object.keys(FLAGS).map(id => BY_ID[id]).filter(Boolean).map(q => `<a href="#/fiche/${encodeURIComponent(q.s)}"><span>${esc(q.q)}</span><span class="small">${esc(q.s)}</span></a><button class="flag" data-act="fixQ" data-id="${q.id}">✏ Corriger la question ou la réponse</button>`).join("")}</div>
@@ -377,7 +383,7 @@ for (const q of QS) {
 
 // ======================== Jeu : état sauvegardé ========================
 const K_BODY = "revanat-corps-v3", K_DAILY = "revanat-daily-v3", K_PET = "revanat-pet-v3", K_SESS = "revanat-serie-v1", K_TAB = "revanat-tableaux-v1", K_WARD = "revanat-garderobe-v1";
-const ART = window.ANIMALS_ART, ANIMALS = ART.animals, RATES = window.ANIMALS_RATES || [], GIFT = window.CADEAUX, GEAR = window.PETGEAR;
+const ART = window.ANIMALS_ART, ANIMALS = ART.animals.filter(a => !(a.o && a.o.human)), KIDS = ART.animals.filter(a => a.o && a.o.human), KID_IDS = new Set(KIDS.map(a => a.id)), RATES = window.ANIMALS_RATES || [], GIFT = window.CADEAUX, GEAR = window.PETGEAR;
 const ANIMAL_BY_ID = { ...ART.byId, ...Object.fromEntries(RATES.map(a => [a.id, a])) };
 document.getElementById("svgdefs").innerHTML = CORPS.DEFS + ART.DEFS + GIFT.DEFS + window.GARDEROBE.DEFS;
 const todayKey = (off = 0) => { const d = new Date(); d.setDate(d.getDate() + off); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -390,7 +396,7 @@ const zTarget = z => { const s = zstat(z); return s.total ? Math.floor(s.ok * ST
 let BODY = load(K_BODY, null);
 const bodyNew = !BODY; BODY ||= {};
 BODY.got = (BODY.got || []).filter(id => ACC_BY[id]); BODY.eq ||= {}; BODY.look = { ...CORPS.LOOK0, ...(BODY.look || {}) };
-if (BODY.tint === undefined) BODY.tint = true;
+delete BODY.tint;
 const has = a => BODY.got.includes(a.id), isEq = a => has(a) && !!BODY.eq[a.id];
 const gotIn = z => BODY.got.filter(id => ACC_BY[id].z === z).map(id => ACC_BY[id]);
 // ---------- Garde-robe achetée avec l'XP ----------
@@ -464,27 +470,38 @@ function syncDaily() {
 }
 const eqv = c => DAILY.equipped[c] ? GIFT.byId[DAILY.equipped[c]].v : null;
 // ---------- Animaux ----------
-const MAX_DAY = 20; // animaux gagnés par jour au maximum
-const randomTarget = () => 5 + Math.floor(Math.random() * 26); // entre 5 et 30 bonnes réponses
+const MAX_DAY = 40; // animaux gagnés par jour au maximum
+const PER_PET = 7, PET_RUN = 4, randomTarget = () => PER_PET; // un animal après 7 bonnes réponses en tout, ou 4 d'affilée (la première atteinte)
+const petLeft = () => { const a = Math.max(1, PET.targetGood - PET.goodSincePet), b = Math.max(1, PET_RUN - PET.petRun); return b < a ? `${plural(b, "bonne réponse", "bonnes réponses")} d'affilée, ou ${a} en tout` : plural(a, "bonne réponse", "bonnes réponses"); };
+const kidTarget = () => 10 + Math.floor(Math.random() * 11), KIB50 = 20, KIB50_EVERY = 50; // un enfant toutes les 10 à 20 bonnes réponses ; 20 croquettes toutes les 50
 let PET = { got: [], companion: null, targetGood: randomTarget(), goodSincePet: 0, dayKey: todayKey(), dayCount: 0, care: {}, ...load(K_PET, {}) };
-PET.got = [...new Set(PET.got || [])].filter(id => ART.byId[id]); PET.rates = [...new Set(PET.rates || [])].filter(id => ANIMAL_BY_ID[id]); PET.care ||= {}; PET.fav ||= {}; PET.when ||= {};
-PET.koCount ||= 0; PET.run ||= 0; PET.bad ||= 0; if (PET.targetGood > 30) PET.targetGood = randomTarget();
+PET.petRun ||= 0; PET.kids = [...new Set([...(PET.kids || []), ...(PET.got || []).filter(id => KID_IDS.has(id))])].filter(id => KID_IDS.has(id)); // la garderie (les enfants gagnés avant y emménagent)
+PET.got = [...new Set(PET.got || [])].filter(id => ART.byId[id] && !KID_IDS.has(id)); PET.rates = [...new Set(PET.rates || [])].filter(id => ANIMAL_BY_ID[id]); PET.care ||= {}; PET.fav ||= {}; PET.when ||= {};
+PET.koCount ||= 0; PET.run ||= 0; PET.bad ||= 0; PET.targetGood = PER_PET; if (!PET.kidT || PET.kidT > 20) PET.kidT = kidTarget(); PET.goodSinceKid ||= 0; PET.good50 ||= 0;
+if (KID_IDS.has(PET.companion)) { PET.kid ||= PET.companion; PET.companion = PET.got[PET.got.length - 1] || null; } if (!PET.kids.includes(PET.kid)) PET.kid = null;
 if (PET.companion && !PET.got.includes(PET.companion) && !PET.rates.includes(PET.companion)) PET.companion = null;
 // accessoires du compagnon : un par niveau, un toutes les 10 bonnes réponses d'affilée
-PET.gear = { got: [], eq: {}, lv: 0, ...(PET.gear || {}) }; PET.gear.got = PET.gear.got.filter(id => GEAR.byId[id]);
+PET.gear = { got: [], eq: {}, keq: {}, lv: 0, ...(PET.gear || {}) }; PET.gear.got = PET.gear.got.filter(id => GEAR.byId[id]);
 for (const id of OLD_GOT) if (GEAR.byId[id] && !PET.gear.got.includes(id)) PET.gear.got.push(id);
 if (OLD_EQ.animal_gear && GEAR.byId[OLD_EQ.animal_gear]) { PET.gear.eq[GEAR.byId[OLD_EQ.animal_gear].s] = OLD_EQ.animal_gear; DAILY.equipped.animal_gear = null; }
-for (const s in PET.gear.eq) if (!PET.gear.got.includes(PET.gear.eq[s])) delete PET.gear.eq[s];
+for (const q of [PET.gear.eq, PET.gear.keq]) for (const s in q) if (!PET.gear.got.includes(q[s])) delete q[s];
 function grantGear() { const pool = GEAR.list.filter(g => !PET.gear.got.includes(g.id)); if (!pool.length) return null; const g = pickOne(pool); PET.gear.got.push(g.id); PET.gear.eq[g.s] ||= g.id; return g.id; }
 const KIB_LEVEL = 20, FEED_MAX = 5, KIB_EVERY = 5, KIB_DAY = 10; // 20 croquettes par niveau, 1 toutes les 5 bonnes réponses (10 par jour) ; un même animal en mange 5 par jour au plus
 function syncLevel() { const L = level(xp()), out = []; if (PET.gear.lv < 1) PET.gear.lv = 1;
   if (!PET.kibLv) PET.kibLv = L; if (PET.kibLv < L) { DAILY.kibbles = (DAILY.kibbles || 0) + KIB_LEVEL * (L - PET.kibLv); PET.kibLv = L; save(K_DAILY, DAILY); save(K_PET, PET); }
   while (PET.gear.lv < L) { PET.gear.lv++; const id = grantGear(); if (id) out.push(id); } if (out.length) save(K_PET, PET); return out; }
-const gearOn = () => Object.values(PET.gear.eq);
+const gearOn = () => Object.values(PET.gear.eq), kidGear = () => Object.values(PET.gear.keq);
+let GWHO = "pet"; const gearSet = () => GWHO === "kid" && PET.kid ? PET.gear.keq : PET.gear.eq; // accessoires du compagnon ou de l'enfant
 for (const id in PET.care) { const c = PET.care[id]; if (c.babyId) { c.babies = Math.max(1, c.babies || 0); delete c.babyId; } } // les bébés sont désormais de la race du parent
 const petCare = id => (PET.care[id] ||= { happiness: 0, fedDays: 0, lastFedDay: null, babies: 0 });
 const MAX_BABIES = 3, FEED_FOR_BABY = 5;
 syncDaily(); save(K_PET, PET);
+// le tout premier enfant est toujours une « L », le cinquième « W » ; les autres arrivent au hasard
+function nextKid(pool) {
+  const has = g => PET.kids.some(id => ANIMAL_BY_ID[id].tag === g), L = pool.filter(a => a.tag === "L"), W = pool.filter(a => a.tag === "W"), rest = pool.filter(a => a.tag !== "W" && a.tag !== "J" || has("W"));
+  if (!has("L") && L.length) return pickOne(L); if (PET.kids.length >= 4 && !has("W") && W.length) return W[0];
+  return pickOne(rest.length ? rest : pool);
+}
 function goodAnswer() { // une bonne réponse : série, croquette, cadeau, animal
   syncDaily(); const out = {}, tk = todayKey();
   if (DAILY.lastActiveDay !== tk) { DAILY.streak = DAILY.lastActiveDay === todayKey(-1) ? (DAILY.streak || 0) + 1 : 1; DAILY.lastActiveDay = tk; }
@@ -494,41 +511,54 @@ function goodAnswer() { // une bonne réponse : série, croquette, cadeau, anima
     DAILY.todayRewardClaimed = true; const pool = GIFT.REWARDS.filter(r => !DAILY.got.includes(r.id));
     if (pool.length) { const r = pickOne(pool); DAILY.got.push(r.id); DAILY.equipped[r.cat] ||= r.id; out.gift = r.id; }
   }
-  PET.goodSincePet = (PET.goodSincePet || 0) + 1;
-  if (PET.goodSincePet >= PET.targetGood && PET.dayCount < MAX_DAY) {
+  PET.goodSincePet = (PET.goodSincePet || 0) + 1; if (!NO_RUN) PET.petRun++;
+  if ((PET.goodSincePet >= PET.targetGood || PET.petRun >= PET_RUN) && PET.dayCount < MAX_DAY) {
     const pool = ANIMALS.filter(a => !PET.got.includes(a.id));
-    PET.goodSincePet = 0; PET.targetGood = randomTarget();
-    if (pool.length) { const a = pickOne(pool); PET.got.push(a.id); PET.dayCount++; petCare(a.id); PET.companion ||= a.id; PET.when[a.id] = Date.now(); out.pet = a.id; }
+    PET.goodSincePet = 0; PET.petRun = 0; PET.targetGood = randomTarget();
+    const rigo = pool.filter(a => a.species === "Rigolos"); // un animal gagné sur quatre environ est un rigolo
+    if (pool.length) { const a = pickOne(rigo.length && Math.random() < .25 ? rigo : pool); PET.got.push(a.id); PET.dayCount++; petCare(a.id); PET.companion ||= a.id; PET.when[a.id] = Date.now(); out.pet = a.id; }
   }
+  if (++PET.goodSinceKid >= PET.kidT) {
+    const pool = KIDS.filter(a => !PET.kids.includes(a.id)); PET.goodSinceKid = 0; PET.kidT = kidTarget();
+    if (pool.length) { const a = nextKid(pool); PET.kids.push(a.id); petCare(a.id); PET.kid ||= a.id; PET.when[a.id] = Date.now(); out.kid = a.id; }
+  }
+  if (++PET.good50 >= KIB50_EVERY) { PET.good50 = 0; DAILY.kibbles = (DAILY.kibbles || 0) + KIB50; out.kib50 = true; }
   PET.run++; PET.bad = 0; if (!NO_RUN && PET.run % 10 === 0) out.gear10 = grantGear();
   save(K_DAILY, DAILY); save(K_PET, PET); return out;
 }
 const PER_RATE = 15; // un animal « raté » toutes les 15 questions ratées
 function badAnswer() {
-  const out = {}; PET.koCount++; PET.run = 0; PET.bad++;
+  const out = {}; PET.koCount++; PET.run = 0; PET.bad++; if (!NO_RUN) PET.petRun = 0; // les ratés ont leur propre règle, à part
   if (PET.koCount % PER_RATE === 0) { const pool = RATES.filter(a => !PET.rates.includes(a.id)); if (pool.length) { const a = pickOne(pool); PET.rates.push(a.id); PET.when[a.id] = Date.now(); petCare(a.id); PET.companion ||= a.id; out.rate = a.id; } }
   save(K_PET, PET); return out;
 }
 const COURAGE = ["Je crois en toi !", "Courage !", "Ne baisse pas les bras, tu vas y arriver !"];
 const kibToday = () => Math.min(KIB_DAY, Math.floor((DAILY.todayGood || 0) / KIB_EVERY));
-function feed() {
-  syncDaily(); const id = PET.companion; if (!id) return { msg: "Choisis d'abord un compagnon dans la ménagerie." };
+function feed(id = PET.companion) {
+  syncDaily(); if (!id) return { msg: "Choisis d'abord un compagnon dans la ménagerie." };
   if (!(DAILY.kibbles > 0)) return { msg: kibToday() >= KIB_DAY ? "Plus de croquette : encore demain, et 20 au prochain niveau !" : `Plus de croquette : encore ${plural(KIB_EVERY - (DAILY.todayGood || 0) % KIB_EVERY, "bonne réponse", "bonnes réponses")} pour la prochaine.` };
   const c = petCare(id), tk = todayKey(); if (c.lastFedDay !== tk) c.fedToday = 0; else if (c.fedToday === undefined) c.fedToday = 1;
-  if (c.fedToday >= FEED_MAX) return { msg: "Il a assez mangé pour aujourd'hui ! Tu peux nourrir un autre animal." };
-  DAILY.kibbles--; c.lastFedDay = tk; c.fedToday++; c.fedDays = (c.fedDays || 0) + 1; c.happiness = Math.min(100, (c.happiness || 0) + 10); const grew = STAGES.find(s => s[0] === c.fedDays);
-  let baby = false; if (c.fedDays % FEED_FOR_BABY === 0 && (c.babies || 0) < MAX_BABIES) { c.babies = (c.babies || 0) + 1; baby = true; }
+  if (c.fedToday >= FEED_MAX) return { msg: isHuman(id) ? "Bien nourri pour aujourd'hui ! Tu peux nourrir un autre enfant." : "Il a assez mangé pour aujourd'hui ! Tu peux nourrir un autre animal." };
+  DAILY.kibbles--; c.lastFedDay = tk; c.fedToday++; c.fedDays = (c.fedDays || 0) + 1; c.happiness = Math.min(100, (c.happiness || 0) + 10); const st0 = stepsOf(id), grew = st0.includes(c.fedDays) ? [c.fedDays, stageName(id, st0.indexOf(c.fedDays))] : null;
+  const human = isHuman(id); let baby = false; if (!human && c.fedDays % FEED_FOR_BABY === 0 && (c.babies || 0) < MAX_BABIES) { c.babies = (c.babies || 0) + 1; baby = true; }
   save(K_DAILY, DAILY); save(K_PET, PET);
-  return { ok: true, baby, grew: !!grew, msg: baby ? `🍼 Un bébé ${ANIMAL_BY_ID[id].name.toLowerCase()} est né !${grew ? ` Et ton compagnon a grandi : ${grew[1]} !` : ""}` : grew ? `🎉 Il a grandi ! Le voilà ${grew[1]} !` : `Miam ! Bonheur : ${c.happiness} %` };
+  return { ok: true, baby, grew: !!grew, msg: human && grew ? `🎉 ${ANIMAL_BY_ID[id].name} a grandi : ${stageName(id, kidStage(c.fedDays))} !` : baby ? `🍼 Un bébé ${ANIMAL_BY_ID[id].name.toLowerCase()} est né !${grew ? ` Et ton compagnon a grandi : ${grew[1]} !` : ""}` : grew ? `🎉 Il a grandi ! Le voilà ${grew[1]} !` : `Miam ! Bonheur : ${c.happiness} %` };
 }
 // taille : celle de l'espèce, puis 5 paliers de croissance selon les croquettes mangées ; les bébés grandissent avec celles de leur parent
-const STAGES = [[0, "tout jeune", .78], [3, "petit", .92], [8, "adulte", 1.06], [15, "grand", 1.2], [25, "géant", 1.36]], BSTAGES = [[0, .78], [4, .95], [8, 1.15], [12, 1.35]];
+const STAGES = [[0, "tout jeune"], [3, "petit"], [8, "adulte"], [15, "grand"], [25, "géant"]];
+const isHuman = id => !!(ANIMAL_BY_ID[id] && ANIMAL_BY_ID[id].o && ANIMAL_BY_ID[id].o.human); // les bébés humains n'ont pas de petits : ils grandissent
+const kidStage = n => { let k = 0; ART.HFED.forEach((f, i) => { if (n >= f) k = i; }); return k; };
+const stgOf = id => { const n = (PET.care[id] || {}).fedDays || 0; return isHuman(id) ? kidStage(n) : stageOf(n); }, stepsOf = id => isHuman(id) ? ART.HFED : STAGES.map(s => s[0]);
+const stageName = (id, k) => isHuman(id) ? (ANIMAL_BY_ID[id].ages || ART.HSTAGES)[k] : STAGES[k][1];
 const stageOf = n => { let k = 0; STAGES.forEach((s, i) => { if (n >= s[0]) k = i; }); return k; };
-const petZ = a => Math.round(ART.size(a) * STAGES[stageOf((PET.care[a.id] || {}).fedDays || 0)][2] * 100) / 100;
-const babyZ = (id, i) => { const since = Math.max(0, ((PET.care[id] || {}).fedDays || 0) - FEED_FOR_BABY * (i + 1)); return Math.round(ART.size(ANIMAL_BY_ID[id]) * BSTAGES.filter(s => since >= s[0]).pop()[1] * 100) / 100; };
-const petSvg = (a, cls = "pet-svg", o = {}) => a ? ART.renderSvg(a, cls, { z: o.stage ? petZ(a) : 1, ...o }, a.id === PET.companion && !o.bare ? gearOn() : null, esc) : "";
-const gearThumb = id => ART.renderSvg(ANIMAL_BY_ID[PET.companion] || ART.byId["chat-tigre-roux"], "thumb", {}, [id], esc);
-const babiesSvg = (id, cls = "pet-svg baby", stage = false) => Array.from({ length: (PET.care[id] || {}).babies || 0 }, (_, i) => petSvg(ANIMAL_BY_ID[id], cls, { isBaby: true, babyN: i, z: stage ? babyZ(id, i) : 1 })).join("");
+// près du corps : écarts de taille doux entre espèces et entre paliers, jamais en dessous de 0,83
+const sizeF = a => { const z = ART.size(a); return Math.min(1.25, Math.max(.9, Math.pow(z, z > 1 ? .8 : .5))); };
+const PETF = [.92, .97, 1.02, 1.08, 1.14], BABYF = [[0, .88], [4, .95], [8, 1.04], [12, 1.12]];
+const petZ = a => Math.round(sizeF(a) * PETF[stageOf((PET.care[a.id] || {}).fedDays || 0)] * 1000) / 1000;
+const babyZ = (id, i) => { const since = Math.max(0, ((PET.care[id] || {}).fedDays || 0) - FEED_FOR_BABY * (i + 1)); return Math.round(sizeF(ANIMAL_BY_ID[id]) * BABYF.filter(s => since >= s[0]).pop()[1] * 1000) / 1000; };
+const petSvg = (a, cls = "pet-svg", o = {}) => a ? ART.renderSvg(a, cls, { z: o.stage ? petZ(a) : 1, ...(isHuman(a.id) ? { stg: stgOf(a.id) } : {}), ...o }, o.bare ? null : a.id === PET.companion ? gearOn() : a.id === PET.kid ? kidGear() : null, esc) : "";
+const gearThumb = id => ART.renderSvg((GWHO === "kid" && ANIMAL_BY_ID[PET.kid]) || ANIMAL_BY_ID[PET.companion] || ART.byId["chat-tigre-roux"], "thumb", GWHO === "kid" && PET.kid ? { stg: stgOf(PET.kid) } : {}, [id], esc);
+const babiesSvg = (id, cls = "pet-svg baby", stage = false) => Array.from({ length: isHuman(id) ? 0 : (PET.care[id] || {}).babies || 0 }, (_, i) => petSvg(ANIMAL_BY_ID[id], cls, { isBaby: true, babyN: i, z: stage ? babyZ(id, i) : 1 })).join("");
 function toast(html, kind = "") { document.querySelectorAll(".toast").forEach(x => x.remove()); const t = document.createElement("div"); t.className = "toast " + kind; t.setAttribute("role", "status"); t.innerHTML = html; document.body.appendChild(t); setTimeout(() => t.classList.add("out"), 2600); setTimeout(() => t.remove(), 3100); }
 
 // le compagnon vient parler à l'écran
@@ -565,9 +595,10 @@ function dailyStrip() {
   syncDaily(); const left = Math.max(1, PET.targetGood - PET.goodSincePet), g = Math.min(5, DAILY.todayGood || 0);
   return `<div class="strip"><span class="chip fire">🔥 <b>${DAILY.streak || 0}</b> ${DAILY.streak > 1 ? "jours" : "jour"}</span>
     <span class="chip kib">${KIB} <b>${DAILY.kibbles || 0}</b> croquette${DAILY.kibbles > 1 ? "s" : ""}</span>
-    <span class="chip paw">🐾 <b>${PET.got.length}</b>/${ANIMALS.length}</span><span class="chip xpc">💎 <b>${wallet().toLocaleString("fr")}</b> XP à dépenser</span></div>
-    <div class="small daily">${DAILY.todayRewardClaimed ? "✔ Cadeau du jour gagné" : `Cadeau du jour : ${g}/5 bonnes réponses`} · ${PET.dayCount >= MAX_DAY ? `${MAX_DAY} animaux aujourd'hui, la suite demain !` : `prochain animal dans ${plural(left, "bonne réponse", "bonnes réponses")} (${PET.dayCount}/${MAX_DAY} aujourd'hui)`} · croquettes : ${kibToday()}/${KIB_DAY} aujourd'hui</div>`;
+    <span class="chip paw">🐾 <b>${PET.got.length}</b>/${ANIMALS.length}</span><span class="chip">🧒 <b>${PET.kids.length}</b>/${KIDS.length}</span>${PET.candy ? `<span class="chip">🍬 <b>${PET.candy}</b></span>` : ""}<span class="chip xpc">💎 <b>${wallet().toLocaleString("fr")}</b> XP à dépenser</span></div>
+    <div class="small daily">${DAILY.todayRewardClaimed ? "✔ Cadeau du jour gagné" : `Cadeau du jour : ${g}/5 bonnes réponses`} · ${PET.dayCount >= MAX_DAY ? `${MAX_DAY} animaux aujourd'hui, la suite demain !` : `prochain animal dans ${petLeft()} (${PET.dayCount}/${MAX_DAY} aujourd'hui)`}${PET.kids.length < KIDS.length ? ` · prochain enfant dans ${plural(Math.max(1, PET.kidT - PET.goodSinceKid), "bonne réponse", "bonnes réponses")}` : ""} · ${KIB50} croquettes dans ${plural(KIB50_EVERY - PET.good50, "bonne réponse", "bonnes réponses")} · petites croquettes : ${kibToday()}/${KIB_DAY} aujourd'hui</div>`;
 }
+const CANDY = `<svg viewBox="0 0 40 40" class="kib-ico" aria-hidden="true"><path d="M13 16 L3 10 Q6 20 3 30 L13 24Z M27 16 L37 10 Q34 20 37 30 L27 24Z" fill="#ff9fc8" stroke="#a83a6b" stroke-width="2.2" stroke-linejoin="round"/><circle cx="20" cy="20" r="10" fill="#ff6fa8" stroke="#a83a6b" stroke-width="2.4"/><path d="M14 14 Q20 20 14 26 M20 10.5 Q27 20 20 29.500" fill="none" stroke="#fff" stroke-width="2.600" stroke-linecap="round"/></svg>`;
 const KIB = `<svg viewBox="0 0 40 40" class="kib-ico" aria-hidden="true"><path d="M11 16a6 6 0 1 1 4-6h10a6 6 0 1 1 4 6v8a6 6 0 1 1-4 6H15a6 6 0 1 1-4-6z" fill="#d79a5b" stroke="#80501f" stroke-width="2.4" stroke-linejoin="round"/><circle cx="17" cy="18" r="1.7" fill="#80501f"/><circle cx="23" cy="22" r="1.7" fill="#80501f"/></svg>`;
 function viewTab(tab) {
   const t = TABS.find(x => x.id === tab) || TABS[0], list = questionsOf(t.id), s = stats(list), len = SET.len;
@@ -575,7 +606,7 @@ function viewTab(tab) {
   const comp = PET.companion ? ANIMAL_BY_ID[PET.companion] : null;
   const pool = k => { const n = k === "ok" ? s.ok : k === "ko" ? s.ko : s.todo; return `<button class="pool ${k}" data-act="start" data-tab="${t.id}" data-pool="${k}" ${n ? "" : "disabled"}><span class="n">${n}</span><span class="t"><b>${POOLS[k].label}</b><span class="small">${POOLS[k].hint}</span></span><span class="go" aria-hidden="true">›</span></button>`; };
   return `${t.id === "g" ? `<section class="card hero"><a class="heroart" href="#/corps" aria-label="Mon corps d'anat">${persoSvg({ vb: "84 -60 232 290", cls: "bust" })}</a><div class="herot"><a class="lvrow" href="#/corps">${lvBlock()}</a>${dailyStrip()}</div>${comp ? `<a class="heropet" href="#/menagerie" aria-label="${esc(comp.name)}">${petSvg(comp)}</a>` : ""}</section>` : ""}
-  ${resumeBanner()}${msg ? `<div class="card small">${esc(msg)}</div>` : ""}
+  ${resumeBanner()}${t.id === "g" ? `<div id="offcard"></div>` : ""}${msg ? `<div class="card small">${esc(msg)}</div>` : ""}
   <section class="card"><h2>${t.id === "g" ? "Toutes les structures" : t.label}</h2>
     <p class="big">${s.done} QCM sur ${s.total} réalisés, ${s.ok} réussis, ${s.ko} échoués</p>${progressBlock(s)}
     <div class="chips" role="group" aria-label="Région">${Object.entries(REG_LABEL).map(([k, v]) => `<button data-act="reg" data-reg="${k}" class="${SET.reg === k ? "on" : ""}">${v}</button>`).join("")}</div></section>
@@ -584,7 +615,7 @@ function viewTab(tab) {
     <div class="range"><input id="len" type="range" min="5" max="100" step="5" value="${Math.min(len, 100)}" data-set="len"><output id="lenOut">${len >= 100 ? "Tous" : len}</output></div>
     <div class="small">Tout à droite = toutes les questions de la case choisie.</div></section>
   <a class="btn primary revbtn" href="#/rev/${t.id}">📖 Révision : cours${t.id === "nerf" ? " (et l'explorateur vertèbre → nerfs)" : t.id === "g" ? " de toutes les structures" : ""}</a>
-  ${t.id === "g" ? `<section class="card"><h2>S'interroger par zone du corps</h2><div class="zgrid">${Object.keys(ZONES).map(z => { const st = zstat(z); return `<button class="zbtn" data-act="zoneQuiz" data-z="${z}"><span class="zth">${persoSvg({ view: z === "dos" ? "b" : "f", crop: z, worn: [], cls: "thumb" })}</span><b>${esc(ZONES[z])}</b><span class="zmini"><i style="width:${st.m * 100}%"></i></span></button>`; }).join("")}</div></section>` : ""}`;
+  ${t.id === "g" ? !OPENS.zonesq ? foldShut("zonesq", "S'interroger par zone du corps") : `<details class="card fold" id="zonesq" open><summary>S'interroger par zone du corps</summary><div class="zgrid">${Object.keys(ZONES).map(z => { const st = zstat(z); return `<button class="zbtn" data-act="zoneQuiz" data-z="${z}"><span class="zth">${persoSvg({ view: z === "dos" ? "b" : "f", crop: z, worn: [], cls: "thumb" })}</span><b>${esc(ZONES[z])}</b><span class="zmini"><i style="width:${st.m * 100}%"></i></span></button>`; }).join("")}</div></details>` : ""}`;
 }
 
 // ---------- Jouer avec le compagnon : questions réussies, mais pas du premier coup ----------
@@ -596,6 +627,49 @@ function startPlay(list, label) {
 function endPlay(S) { // fin de partie : bonheur, et une croquette une fois par jour si on a répondu à 5 questions
   if (!S || !S.play || S.paid || !ANIMAL_BY_ID[S.play]) return; S.paid = true; const c = petCare(S.play), tk = todayKey(), n = S.ok + S.ko; if (!n) return;
   c.happiness = Math.min(100, (c.happiness || 0) + 5); if (n >= 5 && DAILY.lastPlayDay !== tk) { DAILY.lastPlayDay = tk; DAILY.kibbles = (DAILY.kibbles || 0) + 1; S.playKib = true; } save(K_PET, PET); save(K_DAILY, DAILY);
+}
+// ---------- « C'est quoi X ? » : selon son âge, l'enfant pose 0, 1, 2 ou 3 questions par jour ----------
+const KIDH = [.22, .27, .36, .46, .58, .8]; // taille de l'enfant par rapport au personnage, à chaque étape de sa vie
+const ASKN = [0, 1, 1, 2, 3, 3], KIB_NERF = 25; // bébé : rien ; rampe : un nerf (25 croquettes) ; debout 1, joue 2, grand 3, encore plus grand 3 structures (un bonbon chacune)
+const ASKABLE = Object.keys(QBY).filter(s => QBY[s].length >= 3 && !/^(Muscles? :|Insertions |Innervation|Mouvements|Muscles de |Muscles du )/i.test(s));
+// un nerf et ce qui en découle : ses propres QCM (muscles, territoire, fonction…), puis ceux de ses branches, 20 au plus
+const nerveKids = id => ((D.nerfs[id] || {}).children || []).flatMap(c => [c, ...nerveKids(c)]);
+const nerveIds = id => { const own = (QBY[D.nerfs[id].nom] || []).map(q => q.id), br = nerveKids(id).flatMap(c => (QBY[D.nerfs[c].nom] || []).map(q => q.id)); return [...own, ...shuffle([...new Set(br)].filter(x => !own.includes(x)))].slice(0, Math.max(20, own.length)); };
+const NERVES = Object.keys(D.nerfs || {}).filter(id => /^nerf /i.test(D.nerfs[id].nom) && nerveIds(id).length >= 3);
+PET.candy = Math.max(0, PET.candy || 0);
+function dailyAsk() { // la question en cours, ou null s'il n'y en a pas (ou plus) aujourd'hui
+  const id = PET.kid; if (!id || !isHuman(id)) return null; const st = stgOf(id), lim = ASKN[st], tk = todayKey(); if (!lim) return null;
+  let k = DAILY.ask; if (!k || k.day !== tk) k = DAILY.ask = { day: tk, n: 0, s: null, nerf: null, seen: k && k.s ? [k.s] : [] }; if (k.n === undefined) { k.n = k.done ? 1 : 0; k.seen = []; }
+  if (k.n >= lim) return null;
+  const f = st === 1 ? "nerf" : "s", pool = st === 1 ? NERVES : ASKABLE; if (!pool.length) return null;
+  if (!pool.includes(k[f])) { const fresh = pool.filter(x => !k.seen.includes(x)); k[f] = pickOne(fresh.length ? fresh : pool); save(K_DAILY, DAILY); }
+  return { nerf: st === 1, k: k[f], name: cap(st === 1 ? D.nerfs[k[f]].nom : k[f]), left: lim - k.n, st };
+}
+function startAsk() {
+  const k = dailyAsk(); if (!k) return; const kid = PET.kid;
+  startSession("corps", "todo", shuffle(k.nerf ? nerveIds(k.k) : QBY[k.k].map(q => q.id)), k.nerf ? `${k.name} : ce qui en découle` : `C'est quoi « ${k.name} » ?`);
+  if (SESSION) { SESSION.ask = { k: k.k, day: todayKey(), kid, st: k.st, n: SESSION.ids.length }; saveSession(); render(); }
+}
+function askOver(S) { // cette question est jouée : on passe à la suivante (ou à demain)
+  if (S.askCounted) return; S.askCounted = true; const k = DAILY.ask;
+  if (k && k.day === S.ask.day) { k.n = (k.n || 0) + 1; k.seen = [...(k.seen || []), S.ask.k]; k.s = k.nerf = null; save(K_DAILY, DAILY); }
+}
+function endAsk(S) { // tout bon (sans effacer d'erreur ni s'arrêter avant la fin) : 25 croquettes pour le rampeur, un bonbon ensuite
+  if (!S || !S.ask || S.askEnd || !(S.ok + S.ko)) return; S.askEnd = true;
+  if (S.ok === S.ask.n && !S.ko && !S.erased && !S.askCounted) {
+    if (S.ask.st === 1) { DAILY.kibbles = (DAILY.kibbles || 0) + KIB_NERF; S.kibWon = KIB_NERF; } else { PET.candy++; save(K_PET, PET); S.candyWon = true; }
+    DAILY.joy = { day: todayKey(), kid: S.ask.kid }; askOver(S); save(K_DAILY, DAILY);
+  }
+}
+// content de sa bonne réponse, le rampeur avance et l'enfant debout saute sur place (jusqu'au soir)
+const joyCls = (id, big) => { if (!isHuman(id)) return ""; const j = DAILY.joy, st = stgOf(id); return j && j.day === todayKey() && j.kid === id && (st === 1 || st === 2) ? ` ${st === 1 ? "crawling" : ANIMAL_BY_ID[id].fauteuil ? "rolling" : "jumping"}${big ? " now" : ""}${PET.gear.keq.lieu ? "" : " free"}` : ""; };
+const askNote = (id, ask) => { const st = stgOf(id), n = ask ? ask.left : 0; return st === 0 ? " · ses questions commenceront à 9 mois" : ask ? st === 1 ? ` · touche sa bulle : un nerf à connaître pour ${KIB_NERF} croquettes` : ` · ${plural(n, "question")} pour toi : touche sa bulle !` : " · ses prochaines questions : demain"; };
+function eraseError() { // un bonbon efface la dernière erreur : la série de bonnes réponses continue
+  const S = SESSION, u = S && S.undo; if (!u || S.answered == null || S.good || S.wiped || !(PET.candy > 0)) return;
+  const id = S.ids[S.pos]; PET.candy--; if (u.p) PROG[id] = u.p; else delete PROG[id]; save(K_PROG, PROG); markSeen();
+  PET.run = u.run; PET.petRun = u.petRun || 0; PET.bad = u.bad; if (!u.rate) PET.koCount = u.ko; save(K_PET, PET); syncUnlocks();
+  S.ko--; S.erased = (S.erased || 0) + 1; S.wiped = true; S.wrong = (S.wrong || []).filter(x => x !== id); S.undo = null; S.say = "";
+  document.querySelectorAll(".petpop").forEach(x => x.remove()); saveSession(); render(); toast(`🍬 Erreur effacée${PET.run ? ` : ta série continue (${PET.run} d'affilée) !` : " !"}`, "ok");
 }
 // ---------- Série de QCM ----------
 const saveSession = () => save(K_SESS, SESSION && SESSION.pos < SESSION.ids.length ? { ...SESSION, ev: null } : null);
@@ -614,10 +688,11 @@ function viewQuiz() {
   if (!S) return `<div class="card">Aucune série en cours. <a href="#/g">Retour</a></div>`;
   const back = "#/" + (S.tab || "g");
   if (S.pos >= S.ids.length) {
-    const tot = S.ok + S.ko, p = tot ? Math.round(S.ok / tot * 100) : 0, comp = ANIMAL_BY_ID[PET.companion];
-    return `<section class="card bilan"><h2>${S.play ? "Partie terminée" : "Série terminée"}</h2>${comp ? petSvg(comp, "pet-svg lg") : ""}
+    const kid = S.ask && ANIMAL_BY_ID[S.ask.kid], tot = S.ok + S.ko, p = tot ? Math.round(S.ok / tot * 100) : 0, comp = ANIMAL_BY_ID[PET.companion];
+    return `<section class="card bilan"><h2>${S.play ? "Partie terminée" : "Série terminée"}</h2>${kid ? petSvg(kid, "pet-svg lg" + joyCls(kid.id, true), S.candyWon || S.kibWon ? { mood: "happy" } : {}) : comp ? petSvg(comp, "pet-svg lg") : ""}
+      ${kid ? S.candyWon ? `<p class="big candyrow">${CANDY} ${esc(kid.name)} te donne un bonbon !</p><p class="small">« Maintenant je sais ce que c'est, merci ! » Le bonbon sert à effacer une erreur et à garder ta série. Tu en as ${PET.candy}.</p>` : S.kibWon ? `<p class="big candyrow">${KIB} ${esc(kid.name)} te donne ${S.kibWon} croquettes !</p>` : `<p>${S.askCounted ? `« Merci d'avoir essayé ! » Il faut tout réussir pour gagner ${S.ask.st === 1 ? "les croquettes" : "le bonbon"}.` : "« Tu m'expliques la suite plus tard ? » Reviens toucher la bulle quand tu veux aujourd'hui."}</p>` : ""}
       <p class="big">${S.ok} / ${tot} bonnes réponses${tot ? ` (${p} %)` : ""}</p>${tot ? progressBlock({ ok: S.ok, ko: S.ko, todo: 0, total: tot }) : ""}
-      ${S.xp ? `<p class="big">✨ +${S.xp} XP gagnés</p>` : ""}${S.play && ANIMAL_BY_ID[S.play] && tot ? `<p>${esc(ANIMAL_BY_ID[S.play].name)} s'est bien amusé avec toi !${S.playKib ? ` ${KIB} +1 croquette` : ""}</p>` : ""}${S.won && S.won.length ? `<div class="wonrow">${S.won.map(w => w.t === "acc" ? `<span title="${esc(ACC_BY[w.id].name)}">${CORPS.thumb(ACC_BY[w.id])}</span>` : w.t === "gear" ? `<span title="${esc(GEAR.byId[w.id].name)}">${gearThumb(w.id)}</span>` : w.t === "pet" ? `<span>${petSvg(ANIMAL_BY_ID[w.id], "thumb", { bare: true })}</span>` : "").join("")}</div>` : ""}
+      ${S.erased ? `<p class="small">🍬 ${plural(S.erased, "erreur effacée", "erreurs effacées")}</p>` : ""}${S.xp ? `<p class="big">✨ +${S.xp} XP gagnés</p>` : ""}${S.play && ANIMAL_BY_ID[S.play] && tot ? `<p>${esc(ANIMAL_BY_ID[S.play].name)} s'est bien amusé avec toi !${S.playKib ? ` ${KIB} +1 croquette` : ""}</p>` : ""}${S.won && S.won.length ? `<div class="wonrow">${S.won.map(w => w.t === "acc" ? `<span title="${esc(ACC_BY[w.id].name)}">${CORPS.thumb(ACC_BY[w.id])}</span>` : w.t === "gear" ? `<span title="${esc(GEAR.byId[w.id].name)}">${gearThumb(w.id)}</span>` : w.t === "pet" ? `<span>${petSvg(ANIMAL_BY_ID[w.id], "thumb", { bare: true })}</span>` : "").join("")}</div>` : ""}
       <div class="actions"><a class="btn primary" href="${back}">Retour</a>${S.ko ? `<button data-act="redoKo">Refaire mes erreurs (${S.ko})</button>` : ""}${/Android/i.test(navigator.userAgent) ? widgetBtn().replace("btn primary", "btn") : ""}</div></section>`;
   }
   const q = BY_ID[S.ids[S.pos]], f = D.fiches[q.s], ans = S.answered;
@@ -642,9 +717,12 @@ function viewQuiz() {
     const good = S.good, ev = S.ev || {}, pet = ANIMAL_BY_ID[ev.pet], rate = ANIMAL_BY_ID[ev.rate], gift = GIFT.byId[ev.gift];
     const gar = gift ? gift.cat === "decor" ? GIFT.sceneThumb(gift.v) : `<span class="uth">${persoSvg({ hair: gift.v, worn: [], crop: "tete", cls: "thumb" })}</span>` : "";
     const gcard = (id, why) => `<a class="unlock" href="#/corps"><span class="uth">${gearThumb(id)}</span><span><b>Pour ton compagnon : ${esc(GEAR.byId[id].name)} !</b><span class="small">${why}</span></span></a>`;
-    after = `<div class="verdict ${good ? "ok" : "ko"}">${good ? "✔ Bonne réponse" : "✘ Mauvaise réponse"}${S.gain ? `<span class="xp">+${S.gain} XP</span>` : ""}${PET.run >= 3 ? `<span class="streak">🔥 ${PET.run} d'affilée</span>` : ""}</div>
+    after = `<div class="verdict ${good ? "ok" : S.wiped ? "wiped" : "ko"}">${good ? "✔ Bonne réponse" : S.wiped ? "🍬 Erreur effacée" : "✘ Mauvaise réponse"}${S.gain ? `<span class="xp">+${S.gain} XP</span>` : ""}${PET.run >= 3 ? `<span class="streak">🔥 ${PET.run} d'affilée</span>` : ""}</div>
+      ${!good && !S.wiped && S.undo && PET.candy > 0 ? `<button class="candybtn" data-act="erase">${CANDY}<span><b>Effacer cette erreur avec un bonbon</b><span class="small">${S.undo.run ? `Ta série de ${plural(S.undo.run, "bonne réponse", "bonnes réponses")} continue` : "Elle ne comptera pas"} · il t'en reste ${PET.candy}</span></span></button>` : ""}
       ${(ev.fresh || []).map(id => ACC_BY[id]).map(a => `<a class="unlock" href="#/zone/${a.z}"><span class="uth">${CORPS.thumb(a, { look: BODY.look })}</span><span><b>Accessoire : ${esc(a.name)} !</b><span class="small">${esc(ZONES[a.z])} · ${zstat(a.z).p} % réussis · Voir ›</span></span></a>`).join("")}
       ${pet ? `<a class="unlock" href="#/menagerie">${petSvg(pet, "pet-svg mini", { bare: true })}<span><b>Nouvel animal : ${esc(pet.name)} !</b><span class="small">${esc(pet.species)} · ${PET.got.length}/${ANIMALS.length}</span></span></a>` : ""}
+      ${ANIMAL_BY_ID[ev.kid] ? `<a class="unlock" href="#/garderie">${petSvg(ANIMAL_BY_ID[ev.kid], "pet-svg mini", { bare: true })}<span><b>Nouvel enfant à la garderie : ${esc(ANIMAL_BY_ID[ev.kid].name)} !</b><span class="small">${PET.kids.length}/${KIDS.length} enfants</span></span></a>` : ""}
+      ${ev.kib50 ? `<a class="unlock" href="#/corps">${KIB}<span><b>+${KIB50} croquettes !</b><span class="small">${KIB50_EVERY} bonnes réponses</span></span></a>` : ""}
       ${rate ? `<a class="unlock" href="#/menagerie">${petSvg(rate, "pet-svg mini", { bare: true })}<span><b>Surprise : ${esc(rate.name)} !</b><span class="small">Un animal un peu raté, mais plein de charme</span></span></a>` : ""}
       ${ev.gear10 ? gcard(ev.gear10, "10 bonnes réponses d'affilée") : ""}${(ev.gearLv || []).map(id => gcard(id, "Cadeau de niveau")).join("")}
       ${ev.kibble ? `<a class="unlock" href="#/corps">${KIB}<span><b>+1 croquette !</b><span class="small">À donner à ton compagnon</span></span></a>` : ""}
@@ -659,7 +737,7 @@ function viewQuiz() {
   const done = S.ok + S.ko, n = S.ids.length;
   return `<div class="qbar"><button class="quit" data-act="stop" aria-label="Quitter la série">✕ Quitter</button>
       <div class="qprog" role="img" aria-label="Question ${S.pos + 1} sur ${n}"><div class="g" style="width:${pct(S.ok, n)}%"></div><div class="r" style="width:${pct(S.ko, n)}%"></div></div><span class="small qn">${S.pos + 1} / ${n}</span></div>
-    <div class="qmeta small"><span class="qlab">${S.play && ANIMAL_BY_ID[S.play] ? `<span class="playpet ${ans != null && S.good ? "happy" : ""}">${petSvg(ANIMAL_BY_ID[S.play], "pet-svg", ans != null && S.good ? { mood: "happy" } : {})}</span>` : ""}${esc(S.label)}</span><span><b class="cok">✔ ${S.ok}</b> &nbsp;<b class="cko">✘ ${S.ko}</b></span></div>
+    <div class="qmeta small"><span class="qlab">${S.play && ANIMAL_BY_ID[S.play] ? `<span class="playpet ${ans != null && S.good ? "happy" : ""}">${petSvg(ANIMAL_BY_ID[S.play], "pet-svg", ans != null && S.good ? { mood: "happy" } : {})}</span>` : S.ask && ANIMAL_BY_ID[S.ask.kid] ? `<span class="playpet">${petSvg(ANIMAL_BY_ID[S.ask.kid], "pet-svg", ans != null && S.good ? { mood: "happy" } : {})}</span>` : ""}${esc(S.label)}</span><span><b class="cok">✔ ${S.ok}</b> &nbsp;<b class="cko">✘ ${S.ko}</b></span></div>
     <section class="card qcard"><div class="qtop"><span class="tag">${CAT_LABEL[q.c]}${norm(q.a) === norm(q.s) && ans == null ? "" : " · " + esc(cap(q.s))}</span><button class="flag ${FLAGS[q.id] ? "on" : ""}" data-act="flag">🚩 ${FLAGS[q.id] ? "Signalée" : "Signaler"}</button></div>
       <div class="qtext">${esc(q.q)}</div>${q.img ? `<div class="pics">${imgTags(q.img)}</div>` : ""}
       ${q.m ? `<div class="small multi-hint">Plusieurs bonnes réponses : coche-les toutes, puis valide.</div>` : ""}
@@ -670,14 +748,15 @@ function answer(i) {
   const S = SESSION; if (!S || S.answered != null) return;
   const q = BY_ID[S.ids[S.pos]]; S.answered = i;
   const good = S.good = q.m ? S.opts.every((o, j) => q.m.includes(o) === S.sel.includes(j)) : S.opts[i] === q.a;
+  S.wiped = false; S.undo = good ? null : { p: PROG[q.id] ? { ...PROG[q.id] } : null, run: PET.run, petRun: PET.petRun, bad: PET.bad, ko: PET.koCount };
   const lv0 = level(xp()), again = !!PROG[q.id]?.r, p = PROG[q.id] || { n: 0, ok: 0 };
   if (!p.n) p.f = good ? 1 : 0; p.n = (p.n || 0) + 1; p.ok = (p.ok || 0) + (good ? 1 : 0); p.r = good ? 1 : 0; p.t = Date.now(); PROG[q.id] = p; save(K_PROG, PROG); markSeen();
   if (good && again) { WARD.spent = (WARD.spent || 0) + 5; save(K_WARD, WARD); } // question déjà maîtrisée : 5 XP à dépenser au lieu de 10
-  S.ev = good ? goodAnswer() : badAnswer(); S.ev.fresh = syncUnlocks().map(a => a.id);
+  S.ev = good ? goodAnswer() : badAnswer(); if (S.undo) S.undo.rate = !!S.ev.rate; if (!good && S.ask) askOver(S); S.ev.fresh = syncUnlocks().map(a => a.id);
   S.say = ""; if (good && PET.run % 10 === 0) S.say = S.ev.gear10 ? `Bravo ! ${PET.run} d'affilée, et regarde ce que j'ai gagné !` : `Bravo ! ${PET.run} d'affilée !`; else if (good && PET.run % 5 === 0) S.say = "Bravo !"; else if (!good && PET.bad > 7) S.say = COURAGE[PET.bad % COURAGE.length];
   S.gain = (good ? 10 : 0) + S.ev.fresh.length * 25; S.xp = (S.xp || 0) + S.gain;
   const lv1 = level(xp()); S.lvUp = lv1 > lv0 ? lv1 : 0; S.ev.gearLv = syncLevel();
-  S.won ||= []; S.ev.fresh.forEach(id => S.won.push({ t: "acc", id })); for (const id of [S.ev.pet, S.ev.rate]) if (id) S.won.push({ t: "pet", id }); for (const id of [S.ev.gear10, ...S.ev.gearLv]) if (id) S.won.push({ t: "gear", id });
+  S.won ||= []; S.ev.fresh.forEach(id => S.won.push({ t: "acc", id })); for (const id of [S.ev.pet, S.ev.rate, S.ev.kid]) if (id) S.won.push({ t: "pet", id }); for (const id of [S.ev.gear10, ...S.ev.gearLv]) if (id) S.won.push({ t: "gear", id });
   if (good && S.play && ANIMAL_BY_ID[S.play]) { const c = petCare(S.play); c.happiness = Math.min(100, (c.happiness || 0) + 2); save(K_PET, PET); }
   if (good) S.ok++; else { S.ko++; (S.wrong ||= []).push(q.id); }
   saveSession(); render(); petSays(S.say);
@@ -685,13 +764,60 @@ function answer(i) {
 
 // ---------- Mon corps d'anat ----------
 let ZOPEN = null, TAB2 = "coiffure";
+// place du compagnon : l'espace libre à droite du corps habillé (mesuré), sans jamais le recouvrir ; le décor et le cadrage ne bougent pas.
+// Chaque dessin est mis à l'échelle d'après sa taille réelle : personne n'est minuscule, ratés compris.
+const FLY = a => !a.rate && (/^(songbird|parrot|owl|raptor|bat|butterfly|pigeon)$/.test(a.kind) || a.kind === "insect" && (a.o.fly || a.o.bee) || a.o.ptero || a.o.phoenix);
+function fitStage() {
+  const st = document.querySelector(".stage.duo2"), sv = st && st.querySelector("svg.perso"), kb = st && st.querySelector(".stagepet.kidbox"), pb = st && st.querySelector(".stagepet:not(.kidbox)"); if (!sv || !kb && !pb) return;
+  const m = sv.getScreenCTM(); if (!m || !m.a) return;
+  let right = 320, low = 140, air = 118; // bord droit du corps habillé ; bord gauche près du sol ; bord gauche à hauteur de tête
+  sv.querySelectorAll(".breathe path,.breathe ellipse,.breathe circle,.breathe rect,.breathe text,.breathe line,.breathe polygon").forEach(e => {
+    if (e.closest("defs,clipPath,pattern") || e.hasAttribute("clip-path") || e.closest("[clip-path]")) return;
+    const r = e.getBoundingClientRect(); if (!r.width && !r.height) return; const x0 = (r.left - m.e) / m.a, x1 = (r.right - m.e) / m.a, y0 = (r.top - m.f) / m.d, y1 = (r.bottom - m.f) / m.d;
+    if (y1 > 235) right = Math.max(right, x1); if (y1 > 462) low = Math.min(low, x0); if (y0 < 150) air = Math.min(air, x0);
+  });
+  right = Math.min(right + 8, 410);
+  const b = st.getBoundingClientRect(), rx = m.a * right + m.e, rw = b.right - 4 - rx, floor = y => Math.max(0, b.bottom - (m.d * y + m.f)), put = (s, x, y) => { s.style.left = x + "px"; s.style.bottom = floor(y) + "px"; };
+  const fit = (s, D, maxW, maxH, noSh) => {
+    const art = s.querySelector(".petart"); if (!art) return; const hum = !s.classList.contains("baby") && art.querySelector(".hum"), k = (hum || art).getBBox(); if (!k.width || !k.height) return;
+    const baby = s.classList.contains("baby"), sd = s.firstElementChild; // l'ombre se place juste sous le dessin
+    if (sd && sd.tagName === "ellipse") { sd.setAttribute("cx", k.x + k.width / 2); sd.setAttribute("cy", k.y + k.height - 1); sd.setAttribute("rx", noSh ? 0 : k.width * .42); sd.setAttribute("ry", noSh ? 0 : Math.min(8, k.width * .05)); }
+    // un grand accessoire (château, ailes…) se réduit derrière l'animal plutôt que de le rapetisser
+    const gb = s.querySelector(".gearb"), gq = gb && gb.getBBox(), want = hum ? D / k.height : D / Math.sqrt(k.width * k.height), gz = gq && gq.width ? Math.min(1, Math.max(.76, maxW / want / gq.width)) : 1;
+    if (gz < 1) gb.setAttribute("transform", `translate(100 190) scale(${gz.toFixed(3)}) translate(-100 -190)`);
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; [...s.children].forEach(c => { if (c.tagName === "title" || c.tagName === "defs" || baby && c !== art) return; const q = c.getBBox(); if (!q.width && !q.height) return; const z = c === gb ? gz : 1, X = v => 100 + (v - 100) * z, Y = v => 190 + (v - 190) * z; x0 = Math.min(x0, X(q.x)); y0 = Math.min(y0, Y(q.y)); x1 = Math.max(x1, X(q.x + q.width)); y1 = Math.max(y1, Y(q.y + q.height)); });
+    x0 -= 3; y0 -= 3; x1 += 3; y1 += 3; const W = x1 - x0, H = y1 - y0, q = Math.min(want, maxW / W, maxH / H);
+    s.setAttribute("viewBox", `${x0} ${y0} ${W} ${H}`); s.style.width = W * q + "px"; s.style.height = H * q + "px";
+  };
+  const place = (box, x, w) => { box.style.left = x - b.left + "px"; box.style.right = "auto"; box.style.width = w + "px"; };
+  // une famille d'animaux posée sur le même sol (ou en vol) : le parent, et les bébés à côté, un peu devant
+  const family = (box, a, x, w, P, maxH, dy, fly) => {
+    place(box, x, w); const babies = [...box.querySelectorAll(".pet-svg.baby")], n = babies.length, main = box.querySelector(".pet-svg:not(.baby)");
+    babies.forEach((s, i) => fit(s, P * .31 * babyZ(a.id, i), w * .36, P * .4, fly));
+    if (main) { fit(main, P * .66 * petZ(a) * (n ? .97 : 1), w, maxH, fly); const mw = parseFloat(main.style.width); put(main, n === 1 || n === 3 ? w - mw : (w - mw) / 2, (n ? 632 : 640) - dy); }
+    babies.forEach((s, i) => { const bw = parseFloat(s.style.width); put(s, i === 0 ? 0 : i === n - 1 ? w - bw : w * (n === 3 ? .25 : i / (n - 1)), (i === 1 && n === 3 ? 652 : 648) - dy); });
+  };
+  if (kb) { const kid = ANIMAL_BY_ID[PET.kid], main = kb.querySelector(".pet-svg"); place(kb, rx, rw); // l'enfant se mesure au personnage (618 de haut)
+    if (main) { fit(main, 618 * m.d * KIDH[stgOf(kid.id)], rw, b.height * .86); put(main, (rw - parseFloat(main.style.width)) / 2, 640); }
+    const bub = st.querySelector(".askbubble"), hum = main && main.querySelector(".hum"); // bulle au-dessus de la tête de l'enfant, à droite du visage du personnage
+    if (bub && hum) { const r = hum.getBoundingClientRect(), x = m.a * ((r.top - m.f) / m.d < 175 ? 284 : right) + m.e; bub.style.maxWidth = b.right - x - 10 + "px"; bub.style.bottom = Math.min(b.bottom - r.top + 9, b.height - bub.offsetHeight - 4) + "px"; bub.style.right = Math.max(6, Math.min(b.right - (r.left + r.width / 2) - bub.offsetWidth / 2, b.right - x - bub.offsetWidth)) + "px"; } }
+  if (pb) { const a = ANIMAL_BY_ID[PET.companion], x0 = b.left + 4;
+    if (!kb) family(pb, a, rx, rw, Math.min(rw, b.height * .5), b.height * .66, 0, false);
+    else { // avec un enfant : le compagnon, plus petit, passe à gauche du personnage (au sol, ou en l'air s'il vole)
+      const la = m.a * (air - 8) + m.e - x0, lg = m.a * (low - 8) + m.e - x0;
+      if (FLY(a) && la > 74 * m.a) family(pb, a, x0, la, Math.min(la, 130 * m.a), 150 * m.d, 520, true);
+      else if (lg > 74 * m.a) family(pb, a, x0, lg, Math.min(lg * 1.15, 170 * m.a), 170 * m.d, 0, false);
+      else { const w = Math.min(rw * .46, 130 * m.a); family(pb, a, rx, w, w, 130 * m.d, -6, false); pb.classList.add("front"); } // tenue très large : devant l'enfant, sans cacher le personnage
+    } }
+}
+addEventListener("resize", fitStage);
 function zonePanel(z) {
   const s = zstat(z), left = s.total - s.ok, got = gotIn(z), n = got.length;
   const nextMiss = Math.max(1, Math.ceil((n + 1) * s.total / STEPS - 1e-9) - s.ok);
   const cards = got.map(a => `<button class="acc ${isEq(a) ? "on" : ""}" data-act="equip" data-id="${a.id}" aria-pressed="${isEq(a)}"><span class="ath">${CORPS.thumb(a, { look: BODY.look, hair: eqv("coiffure") || "long" })}</span><b>${esc(a.name)}</b><span class="st">${isEq(a) ? "✔ Porté" : "Mettre"}</span></button>`).join("")
     + Array.from({ length: STEPS - n }, (_, i) => `<div class="acc lock ${i ? "" : "next"}"><span class="ath">${LOCK}</span><b>${(n + i + 1) * 5} %</b><span class="st">${i ? "Surprise" : `encore ${nextMiss}`}</span></div>`).join("");
   const pools = [["ko", s.ko], ["todo", s.todo], ["ok", s.ok]];
-  return `<div class="zpanel"><div class="ztop"><div class="zprev">${persoSvg({ view: z === "dos" ? "b" : "f", crop: z, cls: "thumb", tint: BODY.tint, col: zcol })}</div>
+  return `<div class="zpanel"><div class="ztop"><div class="zprev">${persoSvg({ view: z === "dos" ? "b" : "f", crop: z, cls: "thumb" })}</div>
     <div class="zinfo"><p class="big">${s.ok} QCM réussis sur ${s.total} (${s.p} %)</p>${progressBlock(s)}
       <button class="primary" data-act="zoneQuiz" data-z="${z}" ${left ? "" : "disabled"}>${left ? `M'interroger sur cette zone (${left} à réussir)` : "Zone maîtrisée à 100 % 👑"}</button>
       <div class="chips">${pools.map(([k, c]) => `<button data-act="zonePool" data-z="${z}" data-pool="${k}" ${c ? "" : "disabled"}>${k === "ko" ? "Échecs" : k === "todo" ? "Pas encore" : "Déjà eu bon"} (${c})</button>`).join("")}</div></div></div>
@@ -699,7 +825,10 @@ function zonePanel(z) {
     <div class="accgrid">${cards}</div></div>`;
 }
 const LOCK = `<svg viewBox="0 0 60 60" class="lockico" aria-hidden="true"><path d="M20 28v-8a10 10 0 0 1 20 0v8" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><rect x="13" y="27" width="34" height="26" rx="8" fill="currentColor"/><circle cx="30" cy="38" r="4" fill="var(--card)"/><path d="M30 40v6" stroke="var(--card)" stroke-width="4" stroke-linecap="round"/></svg>`;
+// section repliée : seul le titre est construit, le contenu se dessine à l'ouverture
+const foldShut = (id, head) => `<details class="card fold" id="${id}"><summary>${head}</summary></details>`;
 function giftPanel() {
+  if (!OPENS.gifts) return foldShut("gifts", `Coiffures et décors <span class="small">${DAILY.got.length}/${GIFT.REWARDS.length}</span>`);
   const cats = Object.entries(GIFT.CATS), list = GIFT.REWARDS.filter(r => r.cat === TAB2 && DAILY.got.includes(r.id)), cur = DAILY.equipped[TAB2];
   const prev = r => r.cat === "decor" ? GIFT.sceneThumb(r.v) : persoSvg({ hair: r.v, worn: [], crop: "tete", cls: "thumb" });
   return `<details class="card fold" id="gifts" ${OPENS.gifts ? "open" : ""}><summary>Coiffures et décors <span class="small">${DAILY.got.length}/${GIFT.REWARDS.length}</span></summary><p class="small">Un offert au hasard chaque jour dès 5 bonnes réponses, ou à acheter tout de suite. ${DAILY.got.length}/${GIFT.REWARDS.length} obtenus · 💎 ${wallet().toLocaleString("fr")} XP à dépenser</p>
@@ -710,7 +839,7 @@ function giftPanel() {
 }
 // ---------- Garde-robe : boutique et essayage ----------
 let WTAB = "top";
-const OPENS = { shop: false, gifts: false }; // sections déroulées
+const OPENS = { shop: false, gifts: false, zonesq: false, gear: false, zprog: false, mfind: false, klist: false, pkshop: false }; // sections déroulées
 const itemOn = i => FABCATS.includes(i.cat) ? WARD.fab[i.cat] === i.id : WARD.eq[i.s] === i.id;
 function useItem(i, on = !itemOn(i)) { if (FABCATS.includes(i.cat)) { if (on) WARD.fab[i.cat] = i.id; else delete WARD.fab[i.cat]; save(K_WARD, WARD); } else wear(i, on); }
 function tryOn(i, o = {}) { // le personnage portant cet article
@@ -718,6 +847,7 @@ function tryOn(i, o = {}) { // le personnage portant cet article
   if (FABCATS.includes(i.cat)) fab[i.cat] = i.id; else base.worn = [i]; return CORPS.svg({ ...base, ...fabOpts(fab) });
 }
 function shopPanel() {
+  if (!OPENS.shop) return foldShut("shop", `Ma garde-robe <span class="small">${WARD.got.length}/${SHOP.items.length} · 💎 ${wallet().toLocaleString("fr")} XP</span>`);
   const L = level(xp()), W = wallet(), list = SHOP.items.filter(i => i.cat === WTAB), own = list.filter(i => WARD.got.includes(i.id)).length, free = FABCATS.includes(WTAB);
   const card = i => { const got = WARD.got.includes(i.id), on = got && itemOn(i), lock = !got && L < i.lvl; return `<button class="acc ${on ? "on" : ""} ${lock ? "tooLow" : ""}" data-act="wItem" data-id="${i.id}" ${lock ? "disabled" : ""}><span class="ath">${tryOn(i)}</span><b>${esc(i.name)}</b><span class="st ${!got && !lock && W < i.price ? "poor" : ""}">${on ? "✔ Porté" : got ? "Mettre" : lock ? `Niveau ${i.lvl}` : `${i.price} XP`}</span></button>`; };
   return `<details class="card fold" id="shop" ${OPENS.shop ? "open" : ""}><summary>Ma garde-robe <span class="small">${WARD.got.length}/${SHOP.items.length} · 💎 ${W.toLocaleString("fr")} XP</span></summary><p class="wal">💎 <b>${W.toLocaleString("fr")} XP</b> à dépenser</p><p class="small">Une bonne réponse rapporte 10 XP à dépenser (5 si la question était déjà réussie), un accessoire 25. Acheter ne fait jamais baisser ton niveau. ${WARD.got.length}/${SHOP.items.length} articles.</p>
@@ -732,13 +862,14 @@ function buyModal(i) {
 // ---------- Accessoires du compagnon ----------
 let GTAB = "tete";
 function gearPanel() {
+  if (!OPENS.gear) return foldShut("gear", `Accessoires du compagnon <span class="small">${PET.gear.got.length}/${GEAR.list.length}</span>`);
   const n = s => PET.gear.got.filter(id => GEAR.byId[id].s === s).length, t = s => GEAR.list.filter(g => g.s === s).length;
-  const list = PET.gear.got.map(id => GEAR.byId[id]).filter(g => g.s === GTAB), cur = PET.gear.eq[GTAB], L = level(xp());
-  return `<section class="card" id="gear"><h2>Accessoires du compagnon</h2><p class="small">${PET.gear.got.length}/${GEAR.list.length} trouvés. Un à chaque niveau (prochain au niveau ${L + 1}) et un toutes les 10 bonnes réponses d'affilée (${PET.run % 10}/10).</p>
-    <div class="chips">${Object.entries(GEAR.SLOTS).map(([k, l]) => `<button data-act="gearTab" data-k="${k}" class="${GTAB === k ? "on" : ""}">${l} <span class="small">${n(k)}/${t(k)}</span></button>`).join("")}</div>
+  const list = PET.gear.got.map(id => GEAR.byId[id]).filter(g => g.s === GTAB), cur = gearSet()[GTAB], L = level(xp());
+  return `<details class="card fold" id="gear" ${OPENS.gear ? "open" : ""}><summary>Accessoires du compagnon <span class="small">${PET.gear.got.length}/${GEAR.list.length}</span></summary><p class="small">${PET.gear.got.length}/${GEAR.list.length} trouvés. Un à chaque niveau (prochain au niveau ${L + 1}) et un toutes les 10 bonnes réponses d'affilée (${PET.run % 10}/10).</p>
+    ${PET.kid ? `<div class="chips who"><button data-act="gearWho" data-k="pet" class="${GWHO === "pet" ? "on" : ""}">🐾 Compagnon</button><button data-act="gearWho" data-k="kid" class="${GWHO === "kid" ? "on" : ""}">🧒 Enfant</button></div>` : ""}<div class="chips">${Object.entries(GEAR.SLOTS).map(([k, l]) => `<button data-act="gearTab" data-k="${k}" class="${GTAB === k ? "on" : ""}">${l} <span class="small">${n(k)}/${t(k)}</span></button>`).join("")}</div>
     <div class="accgrid">${list.map(g => `<button class="acc ${cur === g.id ? "on" : ""}" data-act="gearEq" data-id="${g.id}" aria-pressed="${cur === g.id}"><span class="ath">${gearThumb(g.id)}</span><b>${esc(g.name)}</b><span class="st">${cur === g.id ? "✔ Porté" : "Mettre"}</span></button>`).join("")}
     ${Array.from({ length: Math.min(6, t(GTAB) - list.length) }, () => `<div class="acc lock"><span class="ath">${LOCK}</span><b>Surprise</b></div>`).join("")}</div>
-    ${gearOn().length ? `<div class="actions"><button class="sm" data-act="gearOff">Tout retirer</button><button class="sm" data-act="gearRnd">Tenue au hasard</button></div>` : PET.gear.got.length ? `<div class="actions"><button class="sm" data-act="gearRnd">Tenue au hasard</button></div>` : ""}</section>`;
+    ${Object.keys(gearSet()).length ? `<div class="actions"><button class="sm" data-act="gearOff">Tout retirer</button><button class="sm" data-act="gearRnd">Tenue au hasard</button></div>` : PET.gear.got.length ? `<div class="actions"><button class="sm" data-act="gearRnd">Tenue au hasard</button></div>` : ""}</details>`;
 }
 // ---------- Galerie de tableaux ----------
 let GALOPEN = false;
@@ -751,25 +882,25 @@ function galleryPanel() {
 let MOOD = null;
 function viewCorps() {
   syncUnlocks(); syncDaily();
-  const v = BODY.view === "b" ? "b" : "f", comp = ANIMAL_BY_ID[PET.companion], c = comp ? petCare(comp.id) : null, art = GIFT.TAB[TAB.cur];
-  const fed = c ? (c.fedDays || 0) % FEED_FOR_BABY : 0, full = c && (c.babies || 0) >= MAX_BABIES, stg = c ? stageOf(c.fedDays || 0) : 0;
+  const v = BODY.view === "b" ? "b" : "f", comp = ANIMAL_BY_ID[PET.companion], kid = ANIMAL_BY_ID[PET.kid], c = comp ? petCare(comp.id) : null, art = GIFT.TAB[TAB.cur];
+  const fed = c ? (c.fedDays || 0) % FEED_FOR_BABY : 0, full = c && (c.babies || 0) >= MAX_BABIES, stg = c ? stgOf(comp.id) : 0, ask = dailyAsk();
   const look = (k, l) => `<div class="lookrow"><span>${l}</span>${CORPS.LOOKS[k].map(x => `<button class="sw ${BODY.look[k] === x ? "on" : ""}" style="background:${x}" data-act="look" data-k="${k}" data-v="${x}" aria-label="${l} ${x}"></button>`).join("")}</div>`;
   return `${resumeBanner()}<div class="duo"><section class="card serie"><span>Série quotidienne</span><b>🔥 ${DAILY.streak || 0} ${DAILY.streak > 1 ? "JOURS" : "JOUR"}</b></section>
     <section class="cadre">${art ? `<button class="nav" data-act="artNav" data-d="-1" aria-label="Tableau précédent" ${TAB.got.length > 1 ? "" : "disabled"}>‹</button><button class="cadrein" data-act="galOpen" aria-label="Changer de tableau"><img class="artimg" data-art="${art.id}" alt="${esc(art.name)}"><span><b>${esc(art.name)}</b><span class="small">${esc(art.by)}</span></span></button><button class="nav" data-act="artNav" data-d="1" aria-label="Tableau suivant" ${TAB.got.length > 1 ? "" : "disabled"}>›</button>` : `<span class="small">Ton premier tableau arrive demain</span>`}</section></div>
   <section class="card"><div class="lvrow">${lvBlock()}</div>${dailyStrip()}</section>
   <section class="card stagecard"><div class="subtabs">${[["f", "Face"], ["b", "Dos"]].map(([k, l]) => `<button data-act="bview" data-v="${k}" class="${v === k ? "on" : ""}">${l}</button>`).join("")}</div>
-    <div class="stage ${comp ? "duo2" : ""}">${persoSvg({ view: v, behind: GIFT.scene(eqv("decor") || "none"), tint: BODY.tint, col: zcol, click: true, names: ZONES, sel: ZOPEN, vb: comp ? "-10 -62 640 716" : "-40 -62 480 716" })}
+    <div class="stage ${comp || kid ? "duo2" : ""}">${persoSvg({ view: v, behind: GIFT.scene(eqv("decor") || "none"), click: true, names: ZONES, sel: ZOPEN, vb: comp || kid ? "-10 -62 640 716" : "-40 -62 480 716" })}
       ${art ? `<div class="hang">${GIFT.painting(art.id, 74)}</div>` : ""}
-      ${comp ? `<div class="stagepet">${petSvg(comp, "pet-svg", { stage: true, ...(MOOD ? { mood: MOOD } : {}) })}<span class="stagebabies">${babiesSvg(comp.id, "pet-svg baby", true)}</span></div>` : ""}</div>
-    <div class="actions center"><button class="sm" data-act="tint">${BODY.tint ? "Masquer les couleurs" : "Voir les couleurs"}</button><button class="sm" data-act="rnd" ${BODY.got.length + WARD.got.length ? "" : "disabled"}>Tenue au hasard</button><button class="sm" data-act="off" ${worn().length ? "" : "disabled"}>Tout retirer</button></div>
-    <div class="legend center"><span><i style="background:${BODY.look.skin}"></i>à travailler</span><span><i style="background:hsl(262 78% 74%)"></i>début</span><span><i style="background:hsl(201 78% 67%)"></i>moitié</span><span><i style="background:hsl(140 78% 60%)"></i>presque</span><span><i style="background:#fbc93d"></i>100 %</span></div>
+      ${kid ? `<div class="stagepet kidbox">${petSvg(kid, "pet-svg" + joyCls(kid.id), { stage: true })}</div>` : ""}${comp ? `<div class="stagepet${kid ? " side" : ""}">${petSvg(comp, "pet-svg", { stage: true, ...(MOOD ? { mood: MOOD } : {}) })}<span class="stagebabies">${babiesSvg(comp.id, "pet-svg baby", true)}</span></div>` : ""}${ask ? `<button class="askbubble" data-act="ask"><b>${ask.nerf ? esc(ask.name) : `C'est quoi « ${esc(ask.name)} » ?`}</b></button>` : ""}</div>
+    <div class="actions center"><button class="sm" data-act="rnd" ${BODY.got.length + WARD.got.length ? "" : "disabled"}>Tenue au hasard</button><button class="sm" data-act="off" ${worn().length ? "" : "disabled"}>Tout retirer</button></div>
     <p class="small center">Touche une zone pour voir ta progression et l'habiller · ${BODY.got.length}/${ACC.length} accessoires</p></section>
   <section class="card"><h2>Mon compagnon d'étude</h2>${comp ? `<div class="petcard"><div class="petbig">${petSvg(comp, "pet-svg lg", MOOD ? { mood: MOOD } : {})}${babiesSvg(comp.id, "pet-svg baby")}</div><div class="petinfo"><b>${esc(comp.name)}</b><span class="small">${esc(comp.species)}${c.babies ? ` · ${plural(c.babies, "bébé", "bébés")}` : ""}</span>
       <span class="joyrow">${FACE(c.happiness || 0)}<span class="xpbar joy"><i style="width:${c.happiness || 0}%"></i></span></span><span class="small">Bonheur : ${c.happiness || 0} %</span>
-      <span class="stages" aria-label="Taille : ${STAGES[stg][1]}">${STAGES.map((s, k) => `<i class="${k <= stg ? "on" : ""}"></i>`).join("")}</span><span class="small">Taille : <b>${STAGES[stg][1]}</b>${stg < STAGES.length - 1 ? ` · ${plural(STAGES[stg + 1][0] - (c.fedDays || 0), "croquette")} avant de devenir ${STAGES[stg + 1][1]}` : " · il a fini de grandir !"}</span>
+      <span class="stages" aria-label="Taille : ${stageName(comp.id, stg)}">${stepsOf(comp.id).map((s, k) => `<i class="${k <= stg ? "on" : ""}"></i>`).join("")}</span><span class="small">${isHuman(comp.id) ? "Âge" : "Taille"} : <b>${stageName(comp.id, stg)}</b>${stg < stepsOf(comp.id).length - 1 ? ` · ${plural(stepsOf(comp.id)[stg + 1] - (c.fedDays || 0), "croquette")} avant de devenir ${stageName(comp.id, stg + 1)}` : " · il a fini de grandir !"}</span>
       <div class="kibrow" aria-label="${fed} croquettes sur ${FEED_FOR_BABY}">${full ? `<span class="small">Famille au complet ! 💕</span>` : Array.from({ length: FEED_FOR_BABY }, (_, i) => `<span class="${i < fed ? "" : "off"}">${KIB}</span>`).join("") + `<span class="small">${FEED_FOR_BABY - fed} avant un bébé</span>`}</div>
       <div class="petacts"><button data-act="feedPet" title="Donner une croquette">${ICO.bowl}<span>Nourrir (${DAILY.kibbles || 0})</span></button><button data-act="playPet" title="Jouer">${ICO.play}<span>Jouer (${replayable().length})</span></button><button data-act="sleepPet" title="Dormir">${ICO.bed}<span>${MOOD === "sleep" ? "Réveiller" : "Dormir"}</span></button><a href="#/menagerie" title="Changer de compagnon">${ICO.swap}<span>Changer</span></a></div></div></div>` : `<p class="small">${PET.got.length ? "Tu n'as pas encore choisi de compagnon." : "Tu gagneras ton premier animal en répondant aux QCM."}</p><a class="btn primary" href="#/menagerie">Ouvrir la ménagerie</a>`}</section>
-  <section class="card"><h2>Progression détaillée des zones</h2><div class="zones">${Object.keys(ZONES).map(z => { const s = zstat(z), open = ZOPEN === z; return `<div class="zitem ${open ? "open" : ""}" id="z-${z}"><button class="zhead" data-act="zone" data-z="${z}" data-from="list" aria-expanded="${open}"><span class="zn">${esc(ZONES[z])}</span><span class="zbar"><i style="width:${s.m * 100}%;background:${s.m >= 1 ? "var(--gold)" : zcol(z) || "transparent"}"></i></span><span class="zp">${s.p} %</span><span class="small zc">${gotIn(z).length}/20</span><span class="chev" aria-hidden="true">▾</span></button>${open ? zonePanel(z) : ""}</div>`; }).join("")}</div></section>
+  <section class="card"><h2>L'enfant que je garde</h2>${kidCard(kid, ask)}</section>
+  ${!OPENS.zprog ? foldShut("zprog", "Progression détaillée des zones") : `<details class="card fold" id="zprog" open><summary>Progression détaillée des zones</summary><div class="zones">${Object.keys(ZONES).map(z => { const s = zstat(z), open = ZOPEN === z; return `<div class="zitem ${open ? "open" : ""}" id="z-${z}"><button class="zhead" data-act="zone" data-z="${z}" data-from="list" aria-expanded="${open}"><span class="zn">${esc(ZONES[z])}</span><span class="zbar"><i style="width:${s.m * 100}%;background:${s.m >= 1 ? "var(--gold)" : zcol(z) || "transparent"}"></i></span><span class="zp">${s.p} %</span><span class="small zc">${gotIn(z).length}/20</span><span class="chev" aria-hidden="true">▾</span></button>${open ? zonePanel(z) : ""}</div>`; }).join("")}</div></details>`}
   ${shopPanel()}${gearPanel()}${galleryPanel()}${giftPanel()}
   <section class="card"><h2>Mon personnage</h2>${look("skin", "Peau")}${look("hair", "Cheveux")}${look("eyes", "Yeux")}${look("base", "Couleur de base")}</section>`;
 }
@@ -781,7 +912,7 @@ let MF = { sp: "", q: "", f: "all", sort: "recent", n: 60 };
 const ownedIds = () => [...PET.got, ...PET.rates];
 function menagerieList() {
   const qn = norm(MF.q), own = ownedIds(), idx = new Map(own.map((id, i) => [id, i])), nb = a => (PET.care[a.id] || {}).babies || 0, hap = a => (PET.care[a.id] || {}).happiness || 0;
-  const L = own.map(id => ANIMAL_BY_ID[id]).filter(a => a && (!MF.sp || a.species === MF.sp) && (!qn || norm(a.name).includes(qn)) && (MF.f === "all" || MF.f === "ok" && !a.rate || MF.f === "rate" && a.rate || MF.f === "fav" && PET.fav[a.id] || MF.f === "baby" && nb(a)));
+  const L = own.map(id => ANIMAL_BY_ID[id]).filter(a => a && (!MF.sp || a.species === MF.sp) && (!qn || norm(a.name).includes(qn)) && (MF.f === "all" || MF.f === "ok" && !a.rate || MF.f === "rate" && a.rate || MF.f === "rigo" && a.species === "Rigolos" || MF.f === "fav" && PET.fav[a.id] || MF.f === "baby" && nb(a)));
   const S = { recent: (a, b) => (PET.when[b.id] || 0) - (PET.when[a.id] || 0) || idx.get(b.id) - idx.get(a.id), old: (a, b) => (PET.when[a.id] || 0) - (PET.when[b.id] || 0) || idx.get(a.id) - idx.get(b.id), name: (a, b) => a.name.localeCompare(b.name, "fr"), species: (a, b) => a.species.localeCompare(b.species, "fr") || a.name.localeCompare(b.name, "fr"), joy: (a, b) => hap(b) - hap(a) || nb(b) - nb(a), fam: (a, b) => nb(b) - nb(a) || a.name.localeCompare(b.name, "fr") };
   L.sort((a, b) => (b.id === PET.companion) - (a.id === PET.companion) || S[MF.sort](a, b)); return L;
 }
@@ -793,14 +924,167 @@ function menagerieCards() {
 function viewMenagerie() {
   syncDaily(); const n = PET.got.length, by = {}; ANIMALS.forEach(a => { (by[a.species] ||= [0, 0])[1]++; if (PET.got.includes(a.id)) by[a.species][0]++; });
   const own = ownedIds(), spOwn = new Set(own.map(id => ANIMAL_BY_ID[id].species)), babies = Object.values(PET.care).reduce((t, c) => t + (c.babies || 0), 0), left = Math.max(1, PET.targetGood - PET.goodSincePet);
-  if (!own.length) return `<section class="card empty"><h2>Ma ménagerie</h2><p>${ANIMALS.length} animaux t'attendent !</p><p class="small">Ton premier arrive dans ${plural(left, "bonne réponse", "bonnes réponses")}. Tu peux en gagner jusqu'à ${MAX_DAY} par jour.</p><a class="btn primary" href="#/g">Commencer une série</a></section>`;
-  const F = [["all", `Tous (${own.length})`], ...(PET.rates.length ? [["ok", "Classiques"], ["rate", "Ratés"]] : []), ["fav", `Favoris (${Object.values(PET.fav).filter(Boolean).length})`], ["baby", "Avec bébés"]];
+  if (!own.length) return `<section class="card empty"><h2>Ma ménagerie</h2><p>${ANIMALS.length} animaux t'attendent !</p><p class="small">Ton premier arrive dans ${petLeft()}. Tu peux en gagner jusqu'à ${MAX_DAY} par jour.</p><a class="btn primary" href="#/g">Commencer une série</a></section>`;
+  const F = [["all", `Tous (${own.length})`], ...(PET.rates.length ? [["ok", "Classiques"], ["rate", "Ratés"]] : []), ...(own.some(id => ANIMAL_BY_ID[id].species === "Rigolos") ? [["rigo", "Rigolos"]] : []), ["fav", `Favoris (${Object.values(PET.fav).filter(Boolean).length})`], ["baby", "Avec bébés"]];
   const SO = [["recent", "Plus récents"], ["old", "Plus anciens"], ["name", "Nom (A à Z)"], ["species", "Espèce"], ["joy", "Bonheur"], ["fam", "Nombre de bébés"]];
   return `<section class="card"><h2>Ma ménagerie</h2><p class="big">${n} / ${ANIMALS.length} animaux${babies ? ` · ${plural(babies, "bébé", "bébés")}` : ""}</p><div class="xpbar"><i style="width:${pct(n, ANIMALS.length)}%"></i></div>
-    <p class="small">${PET.dayCount >= MAX_DAY ? `${MAX_DAY} animaux gagnés aujourd'hui : la suite demain !` : `Prochain animal dans ${plural(left, "bonne réponse", "bonnes réponses")} (${PET.dayCount}/${MAX_DAY} aujourd'hui).`}</p>
-    <div class="chips">${F.map(([k, l]) => `<button data-act="mF" data-k="${k}" class="${MF.f === k ? "on" : ""}">${l}</button>`).join("")}</div>
-    <div class="mfilter"><input type="search" id="msearch" placeholder="Rechercher un animal…" value="${esc(MF.q)}"><select id="msp" aria-label="Espèce"><option value="">Toutes les espèces</option>${Object.entries(by).map(([s, [g, t]]) => `<option value="${esc(s)}" ${MF.sp === s ? "selected" : ""} ${spOwn.has(s) ? "" : "disabled"}>${esc(s)} (${g}/${t})</option>`).join("")}</select><select id="msort" aria-label="Trier par">${SO.map(([k, l]) => `<option value="${k}" ${MF.sort === k ? "selected" : ""}>Tri : ${l}</option>`).join("")}</select></div></section>
+    <p class="small">${PET.dayCount >= MAX_DAY ? `${MAX_DAY} animaux gagnés aujourd'hui : la suite demain !` : `Prochain animal dans ${petLeft()} (${PET.dayCount}/${MAX_DAY} aujourd'hui).`}</p>
+    <details class="fold sub" id="mfind" ${OPENS.mfind ? "open" : ""}><summary>Rechercher et trier${MF.q || MF.sp || MF.f !== "all" ? ` <span class="small">filtre actif</span>` : ""}</summary><div class="chips">${F.map(([k, l]) => `<button data-act="mF" data-k="${k}" class="${MF.f === k ? "on" : ""}">${l}</button>`).join("")}</div>
+    <div class="mfilter"><input type="search" id="msearch" placeholder="Rechercher un animal…" value="${esc(MF.q)}"><select id="msp" aria-label="Espèce"><option value="">Toutes les espèces</option>${Object.entries(by).map(([s, [g, t]]) => `<option value="${esc(s)}" ${MF.sp === s ? "selected" : ""} ${spOwn.has(s) ? "" : "disabled"}>${esc(s)} (${g}/${t})</option>`).join("")}</select><select id="msort" aria-label="Trier par">${SO.map(([k, l]) => `<option value="${k}" ${MF.sort === k ? "selected" : ""}>Tri : ${l}</option>`).join("")}</select></div></details></section>
   <div class="mgrid" id="mgrid">${menagerieCards()}</div>`;
+}
+
+// ======================== Garderie : tous les enfants, un seul à la fois vient dans « Corps » ========================
+const KF = { f: "all", g: "", q: "", n: 60, move: false };
+const isGirl = a => a.g === "f" || !!a.duo, isBoy = a => a.g === "m" || !!a.duo;
+const kidLeft = () => Math.max(1, PET.kidT - PET.goodSinceKid);
+function kidCard(kid, ask) { // la carte de l'enfant choisi (pages Corps et Garderie)
+  if (!kid) return PET.kids.length ? `<p class="small">Choisis l'enfant que tu gardes.</p><a class="btn primary" href="#/garderie">Ouvrir la garderie</a>` : `<p class="small">Ton premier enfant arrive à la garderie dans ${plural(kidLeft(), "bonne réponse", "bonnes réponses")}.</p>`;
+  const c = petCare(kid.id), st = stgOf(kid.id), F = stepsOf(kid.id);
+  return `<div class="petcard kidcard"><div class="petbig">${petSvg(kid, "pet-svg lg" + joyCls(kid.id))}</div><div class="petinfo"><b>${esc(kid.name)}</b>
+    <span class="joyrow">${FACE(c.happiness || 0)}<span class="xpbar joy"><i style="width:${c.happiness || 0}%"></i></span></span>
+    <span class="stages" aria-label="Âge : ${stageName(kid.id, st)}">${F.map((x, k) => `<i class="${k <= st ? "on" : ""}"></i>`).join("")}</span><span class="ager kc">${parkBtn(kid.id)}<span class="small">${inPark(kid.id) ? "dans le parc" : "pas dans le parc"}</span></span><span class="small">Âge : <b>${stageName(kid.id, st)}</b>${st < F.length - 1 ? ` · ${plural(F[st + 1] - (c.fedDays || 0), "croquette")} avant ses ${stageName(kid.id, st + 1)}` : " · a fini de grandir !"}</span>
+    <p class="small candyrow">${CANDY} <span><b>${plural(PET.candy, "bonbon")}</b>${askNote(kid.id, ask)}</span></p>
+    <div class="petacts k3"><button data-act="feedPet" data-id="${kid.id}" title="Donner une croquette">${ICO.bowl}<span>Nourrir (${DAILY.kibbles || 0})</span></button>${ask && route()[0] !== "corps" ? `<button data-act="ask">${ICO.play}<span>Sa question</span></button>` : `<a href="#/garderie" title="Changer d'enfant">${ICO.swap}<span>Changer</span></a>`}<button data-act="setKid" data-id="${kid.id}" data-off="1" title="Ramener à la garderie">${ICO.bed}<span>Raccompagner</span></button></div></div></div>`;
+}
+const kidOrder = () => { const o = (PET.korder || []).filter(id => PET.kids.includes(id)); return [...o, ...PET.kids.filter(id => !o.includes(id))]; }; // l'ordre choisi par le joueur (au départ : l'ordre d'arrivée)
+function kidList(all) {
+  const q = norm(KF.q), base = (PET.ksort || "arr") === "mine" ? kidOrder() : PET.kids, L = base.map(id => ANIMAL_BY_ID[id]).filter(a => { if (all) return true; const s = stgOf(a.id); return (!q || norm(a.name).includes(q)) && (!KF.g || KF.g === "f" && isGirl(a) || KF.g === "m" && isBoy(a) || KF.g === "n" && a.g === "n" && !a.duo) && (KF.f === "all" || KF.f === "fav" && PET.fav[a.id] || KF.f === "in" && inPark(a.id) || KF.f === "out" && !inPark(a.id) || KF.f === "s" && s < 2 || KF.f === "m" && (s === 2 || s === 3) || KF.f === "l" && s > 3); });
+  const S = { filles: (a, b) => isGirl(b) - isGirl(a), gars: (a, b) => isBoy(b) - isBoy(a), name: (a, b) => a.name.localeCompare(b.name, "fr"), age: (a, b) => ((PET.care[b.id] || {}).fedDays || 0) - ((PET.care[a.id] || {}).fedDays || 0) }[PET.ksort];
+  return S ? L.slice().sort(S) : L;
+}
+function kidCards() {
+  const L = kidList(), mv = KF.move;
+  return (L.slice(0, KF.n).map((a, i) => { const on = PET.kid === a.id; return `<div class="mcard ${on ? "comp" : ""}"><button class="fav ${PET.fav[a.id] ? "on" : ""}" data-act="fav" data-id="${a.id}" aria-label="Favori" aria-pressed="${!!PET.fav[a.id]}">${PET.fav[a.id] ? "♥" : "♡"}</button><div class="top">${petSvg(a)}</div><b>${esc(a.name)}</b><span class="ager"><span class="small">${stageName(a.id, stgOf(a.id))}</span>${parkBtn(a.id)}</span>${mv ? `<div class="mvrow"><button data-act="kMv" data-id="${a.id}" data-d="-99" aria-label="Tout au début">⇤</button><button data-act="kMv" data-id="${a.id}" data-d="-1" aria-label="Avancer">◀</button><button data-act="kMv" data-id="${a.id}" data-d="1" aria-label="Reculer">▶</button></div>` : `<button class="sm ${on ? "primary" : ""}" data-act="setKid" data-id="${a.id}" ${on ? 'data-off="1"' : ""}>${on ? "⭐ Je garde cet enfant" : "Garder cet enfant"}</button>`}</div>`; }).join("") || `<p class="small">Aucun enfant ici pour l'instant.</p>`) + (L.length > KF.n ? `<button class="more" data-act="kMore">Voir plus (${L.length - KF.n})</button>` : "");
+}
+// ---------- Le parc : tous les enfants en même temps, on s'y promène et on zoome ----------
+const PK = { W: 1800, H: 1150, z: 0, x: 900, y: 575, sel: null, kids: new Map(), spr: new Map(), bg: null, raf: 0, queue: [], isp: new Map(), edit: false, isel: -1, th: null };
+const PKH = [58, 66, 86, 108, 134, 178]; // taille des enfants dans le parc, selon l'âge
+function parkBg() { const Q = (PARC.themes.find(x => x.id === PET.park.theme) || PARC.themes[0]).c, night = PET.park.theme === "nuit"; // décor dessiné une seule fois : pelouse, chemins, mare, bac à sable, toboggan, cabane…
+  const tree = (x, y, k, c) => `<g transform="translate(${x} ${y}) scale(${k})"><ellipse cx="0" cy="4" rx="46" ry="11" fill="#3f7a3c" opacity=".25"/><rect x="-9" y="-44" width="18" height="48" rx="7" fill="#9a6b45"/><path d="M0,-156 C44,-156 70,-120 56,-92 C78,-64 48,-34 0,-38 C-48,-34 -78,-64 -56,-92 C-70,-120 -44,-156 0,-156Z" fill="${c}"/><path d="M-26,-128 Q-8,-146 14,-140" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" opacity=".35"/></g>`;
+  const fl = (x, y, c) => `<g transform="translate(${x} ${y})">${[0, 72, 144, 216, 288].map(a => `<circle cx="${6 * Math.cos(a / 57.3)}" cy="${6 * Math.sin(a / 57.3)}" r="5" fill="${c}"/>`).join("")}<circle r="4" fill="#ffd84d"/></g>`;
+  let rs = 7; const rnd = () => (rs = (rs * 16807) % 2147483647) / 2147483647;
+  const tufts = Array.from({ length: 150 }, () => { const x = rnd() * 1800, y = 170 + rnd() * 960; return `<path d="M${x},${y} q-5,-12 -9,-13 M${x},${y} q0,-14 1,-16 M${x},${y} q5,-11 10,-12" stroke="${Q[2]}" stroke-width="3" fill="none" stroke-linecap="round" opacity=".55"/>`; }).join("");
+  const flow = Array.from({ length: 60 }, () => fl(rnd() * 1800, 190 + rnd() * 930, ["#ff9fc0", "#fff", "#c9a9f2", "#ffb45c", "#8fd0f5"][Math.floor(rnd() * 5)])).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1150" viewBox="0 0 1800 1150"><defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${Q[0]}"/><stop offset="1" stop-color="${Q[1]}"/></linearGradient><linearGradient id="g2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${Q[3]}"/><stop offset="1" stop-color="${Q[4]}"/></linearGradient></defs>
+  <rect width="1800" height="190" fill="url(#g1)"/>${night ? Array.from({ length: 70 }, () => `<circle cx="${rnd() * 1800}" cy="${rnd() * 165}" r="${1 + rnd() * 2.4}" fill="#fff8d5"/>`).join("") : ""}<circle cx="1560" cy="70" r="44" fill="${night ? "#fdf6d5" : "#ffd84d"}"/>${night ? `<circle cx="1544" cy="60" r="40" fill="${Q[0]}"/>` : ""}<circle cx="1560" cy="70" r="66" fill="#ffd84d" opacity="${night ? .1 : .25}"/>${[[220, 60, 1], [720, 44, 1.2], [1180, 74, .9]].map(([x, y, k]) => `<path transform="translate(${x} ${y}) scale(${k})" d="M-60,20 a24,24 0 0 1 22,-34 a32,32 0 0 1 58,-4 a24,24 0 0 1 34,38Z" fill="#fff" opacity=".95"/>`).join("")}
+  <path d="M0,190 Q250,110 520,165 T1060,150 T1800,170 V260 H0Z" fill="${Q[2]}"/><rect y="180" width="1800" height="970" fill="url(#g2)"/>${[420, 640, 860].map((y, i) => `<path d="M0,${y} Q450,${y - 60} 900,${y} T1800,${y} V${y + 110} Q1350,${y + 170} 900,${y + 110} T0,${y + 110}Z" fill="${Q[5]}" opacity=".5"/>`).join("")}
+  <path d="M-20,1010 C260,900 380,760 640,740 C900,720 980,880 1240,850 C1480,820 1560,640 1830,610 L1830,700 C1600,730 1520,910 1260,940 C980,970 900,810 650,830 C430,850 300,990 -20,1110Z" fill="${Q[6]}"/><path d="M620,740 C640,600 720,480 690,330 L780,330 C820,480 740,620 720,745Z" fill="${Q[6]}"/>${tufts}${flow}
+  <g><ellipse cx="1330" cy="430" rx="250" ry="104" fill="#e8d5a0"/><ellipse cx="1330" cy="426" rx="232" ry="92" fill="#7fcbee"/><ellipse cx="1290" cy="408" rx="150" ry="44" fill="#a9e0f7" opacity=".7"/><path d="M1200,440 q18,-10 36,0 t36,0 M1370,462 q18,-10 36,0 t36,0" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/><g transform="translate(1410 400)"><ellipse rx="34" ry="20" fill="#ffd84d"/><circle cx="26" cy="-18" r="17" fill="#ffd84d"/><path d="M40,-18 l16,5 l-14,7Z" fill="#f5873c"/><circle cx="30" cy="-22" r="3.500" fill="#2a1a14"/></g>${[[1180, 388], [1230, 470], [1470, 450]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="25" ry="10" fill="#5fae5a"/><circle cx="${x + 5}" cy="${y - 6}" r="7" fill="#ff9fc0"/>`).join("")}</g>
+  <g><ellipse cx="350" cy="560" rx="205" ry="92" fill="#c98f52"/><ellipse cx="350" cy="552" rx="186" ry="78" fill="#f7e2ac"/><path d="M290,548 l22,-40 h44 l22,40Z" fill="#f0cf86"/><path d="M300,512 h8 v-12 h8 v12 h8 v-12 h8 v12 h8 v-12 h8 v12 h14 v16 h-62Z" fill="#e5bd6a"/><path d="M440,560 l10,-34 h38 l10,34Z" fill="#f06a6a"/><path d="M446,528 q24,-34 46,0" fill="none" stroke="#c94a4a" stroke-width="6"/><rect x="228" y="548" width="54" height="11" rx="5" fill="#5fa8f0" transform="rotate(-18 228 548)"/></g>
+  <g transform="translate(960 560)"><ellipse cx="40" cy="8" rx="210" ry="24" fill="#3f7a3c" opacity=".2"/><path d="M-110,0 V-190 M-30,0 V-190" stroke="#8f7bea" stroke-width="15" stroke-linecap="round"/><path d="M-110,-40 H-30 M-110,-84 H-30 M-110,-128 H-30" stroke="#ffd15c" stroke-width="10"/><rect x="-124" y="-196" width="112" height="20" rx="8" fill="#ff9fc0"/><path d="M-20,-186 C60,-176 80,-50 236,-18 L236,4 C60,-14 20,-120 -20,-150Z" fill="#ff8f5c"/><path d="M-20,-186 C60,-176 80,-50 236,-18" fill="none" stroke="#fff" stroke-width="7" opacity=".6"/><path d="M-134,-196 L-68,-254 L-2,-196Z" fill="#5fa8f0"/></g>
+  <g transform="translate(250 300)"><ellipse cx="0" cy="6" rx="150" ry="20" fill="#3f7a3c" opacity=".2"/><rect x="-110" y="-120" width="220" height="124" rx="10" fill="#ffe3bf" stroke="#c98f52" stroke-width="7"/><path d="M-140,-112 L0,-214 L140,-112Z" fill="#e5646f" stroke="#a83a48" stroke-width="7" stroke-linejoin="round"/><path d="M0,-176 C-9,-188 -27,-178 -18,-163 C-11,-151 0,-146 0,-146 C0,-146 11,-151 18,-163 C27,-178 9,-188 0,-176Z" fill="#fff"/><path d="M-30,4 V-48 a30,30 0 0 1 60,0 V4Z" fill="#8f7bea" stroke="#5f4ab5" stroke-width="5"/><circle cx="16" cy="-24" r="5" fill="#ffd84d"/><rect x="-92" y="-84" width="44" height="40" rx="6" fill="#bfe6fb" stroke="#fff" stroke-width="6"/><rect x="48" y="-84" width="44" height="40" rx="6" fill="#bfe6fb" stroke="#fff" stroke-width="6"/></g>
+  <g transform="translate(1560 900)"><ellipse cx="0" cy="10" rx="190" ry="26" fill="#3f7a3c" opacity=".2"/><path d="M-150,4 L-96,-200 L-42,4 M150,4 L96,-200 L42,4 M-110,-196 H110" stroke="#c98f52" stroke-width="14" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M-50,-194 V-62 M-2,-194 V-62 M24,-194 V-62 M72,-194 V-62" stroke="#8a7a8a" stroke-width="4"/><rect x="-60" y="-66" width="68" height="15" rx="7" fill="#f06a6a"/><rect x="14" y="-66" width="68" height="15" rx="7" fill="#5fa8f0"/></g>
+  <g transform="translate(640 1000)"><ellipse rx="150" ry="52" fill="#ff9fb8"/><ellipse rx="118" ry="40" fill="#ffd9a5"/><ellipse rx="84" ry="28" fill="#a5d8f0"/><ellipse rx="46" ry="15" fill="#c9a9f2"/></g>
+  ${tree(90, 330, 1.1, "#7fc46c")}${tree(520, 300, .95, "#8fd07a")}${tree(880, 280, .85, "#7fc46c")}${tree(1700, 340, 1.25, "#7fc46c")}${tree(1110, 270, .8, "#8fd07a")}${tree(110, 900, 1.2, "#8fd07a")}${tree(1740, 1100, 1.1, "#7fc46c")}${tree(1180, 1120, 1, "#8fd07a")}</svg>`;
+}
+const svgImg = (s, w, h) => new Promise((ok, ko) => { const u = URL.createObjectURL(new Blob([s], { type: "image/svg+xml" })), im = new Image(); im.onload = () => { const c = document.createElement("canvas"); c.width = w; c.height = h; c.getContext("2d").drawImage(im, 0, 0, w, h); URL.revokeObjectURL(u); ok(c); }; im.onerror = () => { URL.revokeObjectURL(u); ko(new Error("dessin")); }; im.src = u; });
+const SPR_H = 260; // hauteur en pixels des dessins gardés en mémoire
+async function kidSprite(id, st) { // transforme le dessin d'un enfant en image (une fois par âge)
+  const box = document.createElement("div"); box.style.cssText = "position:absolute;left:-9999px;top:0;width:200px;visibility:hidden"; box.innerHTML = ART.renderSvg(ANIMAL_BY_ID[id], "x", { stg: st }); document.body.appendChild(box);
+  try {
+    const s = box.firstElementChild, hum = (s.querySelector(".hum") || s).getBBox(), sh = s.firstElementChild; if (sh.tagName === "ellipse") sh.remove(); const all = s.getBBox(), pad = 5, vx = all.x - pad, vy = all.y - pad, vw = all.width + 2 * pad, vh = all.height + 2 * pad, k = SPR_H / Math.max(vh, 1);
+    s.setAttribute("xmlns", "http://www.w3.org/2000/svg"); s.setAttribute("viewBox", `${vx} ${vy} ${vw} ${vh}`); s.setAttribute("width", vw * k); s.setAttribute("height", vh * k); s.removeAttribute("style");
+    const d = document.createElementNS("http://www.w3.org/2000/svg", "defs"); d.innerHTML = CORPS.DEFS + ART.DEFS; s.prepend(d);
+    const img = await svgImg(new XMLSerializer().serializeToString(s).replace(/^<svg([^>]*)>/, (m, q) => `<svg xmlns="http://www.w3.org/2000/svg"${q.replace(/\sxmlns="[^"]*"/g, "")}>`), Math.ceil(vw * k), Math.ceil(vh * k)), half = c => { const q = document.createElement("canvas"); q.width = Math.max(1, c.width >> 1); q.height = Math.max(1, c.height >> 1); const x = q.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(c, 0, 0, q.width, q.height); return q; }, m = half(img);
+    return { img, mip: [img, m, half(m)], w: vw / hum.height, h: vh / hum.height, cx: (hum.x + hum.width / 2 - vx) / vw, by: (hum.y + hum.height - vy) / vh }; // proportions par rapport à la hauteur de l'enfant
+  } finally { box.remove(); }
+}
+const inPond = (x, y) => ((x - 1330) / 262) ** 2 + ((y - 430) / 112) ** 2 < 1;
+function parkSpot() { // une place libre, loin des autres et hors de la mare
+  let best = [900, 600], bd = -1; for (let i = 0; i < 24; i++) { const x = 90 + Math.random() * 1620, y = 345 + Math.random() * 770; if (inPond(x, y)) continue; let d = 1e9; for (const k of PK.kids.values()) d = Math.min(d, Math.hypot(k.x - x, (k.y - y) * 1.5)); if (d > bd) { bd = d; best = [x, y]; } } return best;
+}
+function parkSync() { // un enfant par place, posé au hasard la première fois
+  const L = PET.kids.filter(inPark), use = new Set(L.map(id => id + "|" + stgOf(id))); for (const id of [...PK.kids.keys()]) if (!L.includes(id)) PK.kids.delete(id); for (const k of [...PK.spr.keys()]) if (!use.has(k)) PK.spr.delete(k); // dessins inutiles effacés de la mémoire
+  if (PK.sel && !inPark(PK.sel)) PK.sel = null;
+  L.forEach(id => { if (!PK.kids.has(id)) { const [x, y] = parkSpot(); PK.kids.set(id, { id, x, y, tx: x, ty: y, wait: Math.random() * 6, ph: Math.random() * 6, dir: 1 }); } const st = stgOf(id), key = id + "|" + st; if (!PK.spr.has(key)) { PK.spr.set(key, null); PK.queue.push([id, st, key]); } });
+  if (PK.queue.length && !PK.busy) (async () => { PK.busy = true; while (PK.queue.length) { const [id, st, key] = PK.queue.shift(); if (!PK.spr.has(key)) continue; try { PK.spr.set(key, await kidSprite(id, st)); } catch { PK.spr.delete(key); } await new Promise(q => setTimeout(q, 0)); } PK.busy = false; parkDraw(); })();
+  parkItems();
+  if (!PK.bg) { PK.bg = "attente"; const th0 = PET.park.theme; svgImg(parkBg(), 2160, 1380).then(c => { if (PET.park.theme === th0) { PK.bg = c; parkDraw(); } }).catch(() => { PK.bg = null; }); }
+}
+// ---------- Aménager le parc : jeux, arbres, activités et couleurs, payés avec les XP à dépenser ----------
+PET.park = { items: [], bag: {}, themes: ["prairie"], theme: "prairie", ...(PET.park || {}) }; PET.park.items = PET.park.items.filter(i => PARC.byId[i.k]); if (!PARC.themes.some(x => x.id === PET.park.theme)) PET.park.theme = "prairie";
+const PARK_MAX = 80; let PTAB = "jeux"; const bagN = k => PET.park.bag[k] || 0, parkSave = () => save(K_PET, PET);
+function parkItems() { // images des éléments posés
+  if (PK.th !== PET.park.theme) { PK.th = PET.park.theme; PK.bg = null; }
+  for (const i of PET.park.items) if (!PK.isp.has(i.k)) { PK.isp.set(i.k, null); const x = PARC.byId[i.k], k = 1.5; svgImg(PARC.svg(x).replace("<svg ", `<svg width="${x.w * k}" height="${(x.h + 14) * k}" `), Math.ceil(x.w * k), Math.ceil((x.h + 14) * k)).then(c => { PK.isp.set(i.k, c); parkDraw(); }).catch(() => PK.isp.delete(i.k)); }
+}
+const itemK = y => .78 + .34 * (y / PK.H); // un peu de perspective
+function drawItem(g, i, n) { const x = PARC.byId[i.k], im = PK.isp.get(i.k), k = itemK(i.y); if (PK.edit && PK.isel === n) { g.strokeStyle = "#7c5cf0"; g.lineWidth = 5; g.setLineDash([12, 8]); g.strokeRect(i.x - x.w * k / 2 - 6, i.y - x.h * k - 6, x.w * k + 12, x.h * k + 24); g.setLineDash([]); } if (im) { g.save(); g.translate(i.x, i.y); if (i.f) g.scale(-1, 1); g.drawImage(im, -x.w * k / 2, -x.h * k, x.w * k, (x.h + 14) * k); g.restore(); } }
+function itemAt(px, py) { const cv = parkCv(), x = PK.x + (px - cv.clientWidth / 2) / PK.z, y = PK.y + (py - cv.clientHeight / 2) / PK.z; let best = -1, by = -1; PET.park.items.forEach((i, n) => { const q = PARC.byId[i.k], k = itemK(i.y), m = 10 / PK.z; if (Math.abs(x - i.x) < q.w * k / 2 + m && y > i.y - q.h * k - m && y < i.y + 14 * k + m && i.y >= by) { best = n; by = i.y; } }); return best; }
+function placeItem(k) { // pose un élément au milieu de ce qu'on regarde, hors de la mare
+  if (PET.park.items.length >= PARK_MAX) return toast(`Le parc est plein (${PARK_MAX} éléments) : range-en un d'abord.`); let x = Math.max(120, Math.min(1680, PK.x || 900)), y = Math.max(360, Math.min(1100, (PK.y || 575) + 60)); for (let n = 0; n < 12 && (inPond(x, y) || PET.park.items.some(i => Math.hypot(i.x - x, i.y - y) < 70)); n++) { x = 120 + Math.random() * 1560; y = 360 + Math.random() * 740; }
+  PET.park.items.push({ k, x: Math.round(x), y: Math.round(y) }); PK.isel = PET.park.items.length - 1; PK.edit = true; PK.sel = null; parkSave(); render(); const cv = parkCv(); if (cv) { PK.x = x; PK.y = y - 40; parkClamp(cv); parkDraw(); cv.scrollIntoView({ block: "center", behavior: "smooth" }); }
+}
+function parkShop() {
+  if (!OPENS.pkshop) return foldShut("pkshop", `Aménager le parc <span class="small">💎 ${wallet().toLocaleString("fr")} XP</span>`); const W = wallet(), th = PTAB === "themes";
+  const cards = th ? PARC.themes.map(x => { const got = PET.park.themes.includes(x.id), on = PET.park.theme === x.id; return `<button class="acc ${on ? "on" : ""}" data-act="pkTheme" data-id="${x.id}" aria-pressed="${on}"><span class="ath"><svg viewBox="0 0 90 90"><rect width="90" height="90" fill="${x.c[0]}"/><rect y="22" width="90" height="14" fill="${x.c[1]}"/><path d="M0,40 Q30,24 60,36 T90,34 V90 H0Z" fill="${x.c[2]}"/><rect y="46" width="90" height="44" fill="${x.c[3]}"/><path d="M0,70 Q45,52 90,66 V90 H0Z" fill="${x.c[4]}"/><path d="M10,90 Q40,66 90,58 V68 Q50,74 34,90Z" fill="${x.c[6]}"/></svg></span><b>${esc(x.n)}</b><span class="st">${on ? "✔ En place" : got ? "Mettre" : `💎 ${x.p} XP`}</span></button>`; }).join("")
+    : PARC.list.filter(x => x.c === PTAB).sort((a, b) => a.p - b.p).map(x => { const b = bagN(x.id), n = PET.park.items.filter(i => i.k === x.id).length; return `<button class="acc ${n ? "on" : ""}" data-act="pkBuy" data-id="${x.id}"><span class="ath">${PARC.svg(x, "pkth")}</span><b>${esc(x.n)}</b><span class="st">${b ? `Poser (${b} en réserve)` : `💎 ${x.p} XP`}${n ? ` · ${n} posé${n > 1 ? "s" : ""}` : ""}</span></button>`; }).join("");
+  return `<details class="card fold" id="pkshop" open><summary>Aménager le parc <span class="small">💎 ${W.toLocaleString("fr")} XP</span></summary><p class="small">Payé avec les mêmes XP que ta garde-robe : ton niveau ne baisse jamais. Tu peux acheter plusieurs fois le même élément.</p><div class="chips">${Object.entries(PARC.CATS).map(([k, l]) => `<button data-act="pkTab" data-k="${k}" class="${PTAB === k ? "on" : ""}">${l}</button>`).join("")}</div><div class="accgrid">${cards}</div></details>`;
+}
+PET.hid ||= {}; // enfants gardés, mais absents du parc (tous y sont au départ)
+const inPark = id => !PET.hid[id], parkN = () => PET.kids.filter(inPark).length;
+const parkBtn = id => `<button class="pm ${inPark(id) ? "in" : ""}" data-act="kPark" data-id="${id}" aria-label="${inPark(id) ? "Retirer du parc" : "Remettre dans le parc"}" title="${inPark(id) ? "Retirer du parc" : "Remettre dans le parc"}">${inPark(id) ? "−" : "+"}</button>`;
+const parkCv = () => document.getElementById("park");
+function parkFit(cv) { return Math.max(cv.clientWidth / PK.W, cv.clientHeight / PK.H); } // zoom minimal : le parc remplit la fenêtre
+function parkAll(cv) { return Math.min(cv.clientWidth / PK.W, cv.clientHeight / PK.H); } // zoom « tout voir »
+function parkClamp(cv) { const z = PK.z, hw = cv.clientWidth / 2 / z, hh = cv.clientHeight / 2 / z; PK.x = hw * 2 >= PK.W ? PK.W / 2 : Math.min(PK.W - hw, Math.max(hw, PK.x)); PK.y = hh * 2 >= PK.H ? PK.H / 2 : Math.min(PK.H - hh, Math.max(hh, PK.y)); }
+function parkZoom(f, px, py) { const cv = parkCv(); if (!cv) return; const x = px === undefined ? cv.clientWidth / 2 : px, y = py === undefined ? cv.clientHeight / 2 : py, wx = PK.x + (x - cv.clientWidth / 2) / PK.z, wy = PK.y + (y - cv.clientHeight / 2) / PK.z; PK.z = Math.max(parkAll(cv), Math.min(3.2, PK.z * f)); PK.x = wx - (x - cv.clientWidth / 2) / PK.z; PK.y = wy - (y - cv.clientHeight / 2) / PK.z; parkClamp(cv); parkDraw(); }
+function parkDraw() {
+  const cv = parkCv(); if (!cv || !cv.clientWidth) return; const dpr = Math.min(2, devicePixelRatio || 1), w = cv.clientWidth, h = cv.clientHeight; if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  if (!PK.z) PK.z = parkFit(cv); parkClamp(cv); const g = cv.getContext("2d"), z = PK.z; g.setTransform(dpr, 0, 0, dpr, 0, 0); g.imageSmoothingQuality = "high"; const sky = h / 2 - PK.y * z; const Q = (PARC.themes.find(x => x.id === PET.park.theme) || PARC.themes[0]).c; g.fillStyle = Q[4]; g.fillRect(0, 0, w, h); if (sky > 0) { g.fillStyle = Q[0]; g.fillRect(0, 0, w, sky + 1); } g.translate(w / 2 - PK.x * z, h / 2 - PK.y * z); g.scale(z, z);
+  if (PK.bg && PK.bg !== "attente") g.drawImage(PK.bg, 0, 0, PK.W, PK.H);
+  const L = [...PK.kids.values(), ...PET.park.items.map((i, n) => ({ it: i, n, y: PARC.byId[i.k].flat ? -1 : i.y }))].sort((a, b) => a.y - b.y); PK.hits = [];
+  for (const k of L) {
+    if (k.it) { drawItem(g, k.it, k.n); continue; }
+    const st = stgOf(k.id), sp = PK.spr.get(k.id + "|" + st), H = PKH[st] * (.86 + .28 * (k.y / PK.H)), mv = k.moving, bob = mv ? Math.abs(Math.sin(k.ph * 7)) * (st === 1 ? 2 : 5) : Math.sin(k.ph * 2) * .8;
+    g.fillStyle = "rgba(40,60,30,.2)"; g.beginPath(); g.ellipse(k.x, k.y, H * .26, H * .06, 0, 0, 7); g.fill();
+    if (k.id === PK.sel || k.id === PET.kid) { g.strokeStyle = k.id === PK.sel ? "#7c5cf0" : "#f5b22e"; g.lineWidth = 4; g.beginPath(); g.ellipse(k.x, k.y, H * .36, H * .1, 0, 0, 7); g.stroke(); }
+    if (sp) { const sw = sp.w * H, sh = sp.h * H; g.save(); g.translate(k.x, k.y - bob); if (st === 1 && k.dir > 0) g.scale(-1, 1); else if (mv && st > 1) g.rotate(Math.sin(k.ph * 7) * .035); const px = sh * z * dpr, im = sp.mip[px < SPR_H * .3 ? 2 : px < SPR_H * .62 ? 1 : 0]; g.drawImage(im, -sw * sp.cx, -sh * sp.by, sw, sh); g.restore(); }
+    PK.hits.push([k.id, k.x, k.y, H]);
+    if (z > 1.15 || k.id === PK.sel) { const n = shortName(ANIMAL_BY_ID[k.id]), fs = Math.max(11, 13 / z * Math.min(z, 1.2)); g.font = `800 ${fs}px Nunito, sans-serif`; const tw = g.measureText(n).width + fs; g.fillStyle = k.id === PK.sel ? "#7c5cf0" : "rgba(255,255,255,.9)"; g.beginPath(); if (g.roundRect) g.roundRect(k.x - tw / 2, k.y + 6, tw, fs * 1.55, fs); else g.rect(k.x - tw / 2, k.y + 6, tw, fs * 1.55); g.fill(); g.fillStyle = k.id === PK.sel ? "#fff" : "#3a2a55"; g.textAlign = "center"; g.fillText(n, k.x, k.y + 6 + fs * 1.13); }
+    if (k.id === PET.kid) { g.font = `${18 / Math.max(.7, z)}px sans-serif`; g.textAlign = "center"; g.fillText("⭐", k.x, k.y - H - 8 - bob); }
+  }
+}
+const shortName = a => a.name;
+let parkT = 0; const CALM = matchMedia("(prefers-reduced-motion: reduce)");
+function parkLoop(ts) {
+  const cv = parkCv(); if (!cv) { PK.raf = 0; return; } PK.raf = requestAnimationFrame(parkLoop); if (document.hidden || ts - parkT < 33) return; const dt = Math.min(.1, (ts - parkT) / 1000); parkT = ts; const bx = cv.getBoundingClientRect(); if (bx.bottom < 0 || bx.top > innerHeight) return;
+  if (!CALM.matches) for (const k of PK.kids.values()) {
+    const st = stgOf(k.id), v = [0, 20, 34, 52, 46, 48][st]; k.ph += dt; if (k.id === PK.sel || !v) { k.moving = false; continue; }
+    const dx = k.tx - k.x, dy = k.ty - k.y, d = Math.hypot(dx, dy);
+    if (d < 4) { k.moving = false; k.wait -= dt; if (k.wait <= 0) { k.wait = 1 + Math.random() * 6; const near = PET.park.items.length && Math.random() < .35 ? PET.park.items.filter(i => Math.hypot(i.x - k.x, i.y - k.y) < 520) : [], go = near.length ? pickOne(near) : null, a = Math.random() * 6.283, q = 50 + Math.random() * 190; if (go) { k.tx = Math.max(60, Math.min(1740, go.x + (Math.random() - .5) * 150)); k.ty = Math.max(330, Math.min(1120, go.y + 8 + Math.random() * 34)); k.wait = 5 + Math.random() * 7; } else k.tx = Math.max(60, Math.min(1740, k.x + Math.cos(a) * q)); if (!go) k.ty = Math.max(330, Math.min(1120, k.y + Math.sin(a) * q * .6)); for (let i = 1; i <= 8; i++) if (inPond(k.x + (k.tx - k.x) * i / 8, k.y + (k.ty - k.y) * i / 8)) { k.tx = k.x; k.ty = k.y; break; } } }
+    else { k.moving = true; k.dir = dx > 0 ? 1 : -1; k.x += dx / d * v * dt; k.y += dy / d * v * dt; }
+  }
+  parkDraw();
+}
+function parkCard() { // la fiche de l'enfant touché dans le parc (ou de l'élément, en mode aménagement)
+  if (PK.edit) { const i = PET.park.items[PK.isel], x = i && PARC.byId[i.k]; return x ? `<div class="pkc"><span class="pki">${PARC.svg(x)}</span><span class="pkt"><b>${esc(x.n)}</b><span class="small">Fais-le glisser pour le déplacer</span></span><button data-act="pkFlip">Retourner</button><button data-act="pkBag">Ranger</button></div>` : `<span class="small">${PET.park.items.length ? "Touche un élément que tu as posé pour le déplacer, le retourner ou le ranger." : "Achète un élément dans « Aménager le parc », juste en dessous."}</span>`; }
+  const a = ANIMAL_BY_ID[PK.sel]; if (!a || !PET.kids.includes(a.id)) return `<span class="small">${PET.kids.length > 1 ? "Glisse pour te promener, pince ou utilise + et − pour zoomer." : ""}</span>`;
+  const on = PET.kid === a.id; return `<div class="pkc"><span class="pki">${petSvg(a, "thumb")}</span><span class="pkt"><b>${esc(a.name)}</b><span class="ager"><span class="small">${stageName(a.id, stgOf(a.id))}</span>${parkBtn(a.id)}</span></span><button class="fav2 ${PET.fav[a.id] ? "on" : ""}" data-act="fav" data-id="${a.id}" aria-label="Favori">${PET.fav[a.id] ? "♥" : "♡"}</button><button class="${on ? "" : "primary"}" data-act="setKid" data-id="${a.id}" ${on ? 'data-off="1"' : ""}>${on ? "Raccompagner" : "Garder cet enfant"}</button></div>`;
+}
+function parkPick(px, py) { const cv = parkCv(), x = PK.x + (px - cv.clientWidth / 2) / PK.z, y = PK.y + (py - cv.clientHeight / 2) / PK.z; let best = null, bd = 1e9; for (const [id, kx, ky, H] of PK.hits || []) { const r0 = Math.max(H * .42, 22 / PK.z), dx = Math.abs(x - kx), dy = y - (ky - H / 2); if (dx < r0 && Math.abs(dy) < H / 2 + 14 / PK.z) { const d = dx + Math.abs(dy) * .4 - ky * .01; if (d < bd) { bd = d; best = id; } } } PK.sel = best; const c = document.getElementById("parkcard"); if (c) c.innerHTML = parkCard(); parkDraw(); }
+function parkStart() { // branche les gestes (souris, doigt, pincement, molette, clavier)
+  const cv = parkCv(); if (!cv) return; parkSync(); if (!PK.raf) PK.raf = requestAnimationFrame(parkLoop); if (PK.z && PK.z < parkAll(cv)) PK.z = parkAll(cv); parkDraw();
+  const P = new Map(); let moved = 0, d0 = 0; const pos = e => { const b = cv.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
+  cv.addEventListener("gesturestart", e => e.preventDefault());
+  cv.onpointerdown = e => { try { cv.setPointerCapture(e.pointerId); } catch {} P.set(e.pointerId, pos(e)); if (P.size === 1) { moved = 0; PK.drag = -1; if (PK.edit) { const n = itemAt(...pos(e)); if (n >= 0) { PK.drag = n; PK.isel = n; parkDraw(); } } } if (P.size === 2) { const [a, b] = [...P.values()]; d0 = Math.hypot(a[0] - b[0], a[1] - b[1]); moved = 99; } };
+  cv.onpointermove = e => { if (!P.has(e.pointerId)) return; const q = pos(e), o = P.get(e.pointerId); if (P.size === 1) { moved += Math.hypot(q[0] - o[0], q[1] - o[1]); if (moved > 6 && PK.drag >= 0) { const i = PET.park.items[PK.drag]; i.x = Math.max(60, Math.min(1740, i.x + (q[0] - o[0]) / PK.z)); i.y = Math.max(300, Math.min(1130, i.y + (q[1] - o[1]) / PK.z)); parkDraw(); } else if (moved > 6) { PK.x -= (q[0] - o[0]) / PK.z; PK.y -= (q[1] - o[1]) / PK.z; parkClamp(cv); parkDraw(); } P.set(e.pointerId, q); } else if (P.size === 2) { P.set(e.pointerId, q); const [a, b] = [...P.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (d0 > 0) parkZoom(d / d0, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); d0 = d; } };
+  const up = e => { if (!P.has(e.pointerId)) return; const q = P.get(e.pointerId); P.delete(e.pointerId); if (!P.size && PK.drag >= 0) { PK.drag = -1; const c = document.getElementById("parkcard"); if (c) c.innerHTML = parkCard(); if (moved > 6) { const i = PET.park.items[PK.isel]; i.x = Math.round(i.x); i.y = Math.round(i.y); parkSave(); } return; } if (!P.size && moved <= 8 && e.type === "pointerup") { if (PK.edit) { PK.isel = -1; const c = document.getElementById("parkcard"); if (c) c.innerHTML = parkCard(); parkDraw(); } else parkPick(q[0], q[1]); } }; cv.onpointerup = up; cv.onpointercancel = up;
+  cv.onwheel = e => { e.preventDefault(); const q = pos(e); parkZoom(Math.exp(-e.deltaY * .0016), q[0], q[1]); };
+  cv.onkeydown = e => { const s = 60 / PK.z, m = { ArrowLeft: [-s, 0], ArrowRight: [s, 0], ArrowUp: [0, -s], ArrowDown: [0, s] }[e.key]; if (m) { e.preventDefault(); PK.x += m[0]; PK.y += m[1]; parkClamp(cv); parkDraw(); } else if (e.key === "+" || e.key === "=") parkZoom(1.3); else if (e.key === "-") parkZoom(.77); };
+}
+addEventListener("resize", () => { const cv = parkCv(); if (cv) { PK.z = Math.max(PK.z, parkAll(cv)); parkDraw(); } });
+const parkView = () => `<div class="park"><canvas id="park" tabindex="0" role="img" aria-label="Le parc de la garderie : ${plural(PET.kids.length, "enfant")}"></canvas><div class="pkbtn"><button data-act="pkZ" data-f="1.4" aria-label="Zoomer">+</button><button data-act="pkZ" data-f="0.71" aria-label="Dézoomer">−</button><button data-act="pkAll" aria-label="Voir tout le parc">⛶</button>${PET.kid && inPark(PET.kid) ? `<button data-act="pkMe" aria-label="Aller vers l'enfant que je garde">⭐</button>` : ""}<button data-act="pkEdit" class="${PK.edit ? "on" : ""}" aria-label="Aménager le parc" aria-pressed="${PK.edit}">🔨</button></div></div><div id="parkcard">${parkCard()}</div>`;
+function viewGarderie() {
+  syncDaily(); const n = PET.kids.length, ask = dailyAsk(), kid = ANIMAL_BY_ID[PET.kid], so = PET.ksort || "arr";
+  if (!n) return `<section class="card empty"><h2>La garderie</h2>${parkView()}<p>${KIDS.length} enfants t'attendent !</p><p class="small">Le premier arrive dans ${plural(kidLeft(), "bonne réponse", "bonnes réponses")}, puis un toutes les 10 à 20 bonnes réponses.</p><a class="btn primary" href="#/g">Commencer une série</a></section>`;
+  const F = [["all", `Tous (${n})`], ["s", "Petits"], ["m", "Moyens"], ["l", "Grands"], ["fav", `Favoris (${PET.kids.filter(id => PET.fav[id]).length})`], ["in", `Dans le parc (${parkN()})`], ["out", `Hors du parc (${n - parkN()})`]], SO = [["arr", "Ordre d'arrivée"], ["mine", "Mon ordre"], ["filles", "Filles d'abord"], ["gars", "Garçons d'abord"], ["age", "Âge"], ["name", "Nom (A à Z)"]], GE = [["f", "Filles"], ["m", "Garçons"], ["n", "Prénoms mixtes"]];
+  return `<section class="card"><h2>La garderie</h2><p class="big">${n} / ${KIDS.length} enfants <span class="small" id="parkn">· ${parkN()} dans le parc</span></p><div class="xpbar"><i style="width:${pct(n, KIDS.length)}%"></i></div>${n < KIDS.length ? `<p class="small">Prochain enfant dans ${plural(kidLeft(), "bonne réponse", "bonnes réponses")}.</p>` : ""}${parkView()}</section>
+  ${parkShop()}
+  <section class="card"><h2>L'enfant que je garde</h2>${kidCard(kid, ask)}</section>
+  <details class="card fold" id="klist" ${OPENS.klist ? "open" : ""}><summary>Tous les enfants <span class="small">${n}</span></summary>${OPENS.klist ? `<div class="chips">${F.map(([k, l]) => `<button data-act="kF" data-k="${k}" class="${KF.f === k ? "on" : ""}">${l}</button>`).join("")}</div><div class="chips">${GE.map(([k, l]) => `<button data-act="kG" data-k="${k}" class="${KF.g === k ? "on" : ""}">${l}</button>`).join("")}</div><div class="mfilter"><input type="search" id="ksearch" placeholder="Rechercher un enfant…" value="${esc(KF.q)}"><select id="ksort" aria-label="Trier par">${SO.map(([k, l]) => `<option value="${k}" ${so === k ? "selected" : ""}>${l}</option>`).join("")}</select><button class="sm ${KF.move ? "primary" : ""}" data-act="kMove">${KF.move ? "✔ Terminé" : "Réorganiser"}</button></div><div class="actions"><button class="sm" data-act="kAll" data-d="1">+ Tous dans le parc</button><button class="sm" data-act="kAll" data-d="0">− Vider le parc</button></div>
+  <div class="mgrid" id="kgrid">${kidCards()}</div>` : ""}</details>`;
 }
 
 // ======================== Routeur ========================
@@ -808,7 +1092,7 @@ function route() { return (location.hash || "#/g").replace(/^#\/?/, "").split("/
 let LAST = "";
 function render() {
   let [p0, p1] = route(); let html, title = "Révisions anat", tab = null, scrollTo = null;
-  if (p0 === "zone") { ZOPEN = ZONES[p1] ? p1 : null; if (ZOPEN) { if (ZOPEN === "dos") BODY.view = "b"; scrollTo = "z-" + ZOPEN; } history.replaceState(null, "", "#/corps"); p0 = "corps"; }
+  if (p0 === "zone") { ZOPEN = ZONES[p1] ? p1 : null; if (ZOPEN) { OPENS.zprog = true; if (ZOPEN === "dos") BODY.view = "b"; scrollTo = "z-" + ZOPEN; } history.replaceState(null, "", "#/corps"); p0 = "corps"; }
   const y = window.scrollY, same = LAST === location.hash;
   try {
     if (!QS.length) html = `<div class="card">Les questions n'ont pas pu être chargées (fichier questions.js manquant).</div>`;
@@ -821,6 +1105,7 @@ function render() {
     else if (p0 === "nx") { const r = route(); title = "Nerf"; html = viewNx(p1, r[2], r[3]); }
     else if (p0 === "corps") { title = "Mon corps d'anat"; html = viewCorps(); }
     else if (p0 === "menagerie") { title = "Ma ménagerie"; html = viewMenagerie(); }
+    else if (p0 === "garderie") { title = "La garderie"; html = viewGarderie(); }
     else if (p0 === "sync") { MSG = importWidget(p1 || ""); history.replaceState(null, "", "#/widget"); title = "Widget"; html = viewWidget(); }
     else if (p0 === "widget") { title = "Widget"; html = viewWidget(); }
     else if (p0 === "reglages") { title = "Réglages"; html = viewSettings(); }
@@ -831,15 +1116,21 @@ function render() {
   const nav = TABS.some(t => t.id === p0) || p0 === "quiz" ? "g" : ["rev", "fiche", "fiches", "vert", "nx"].includes(p0) ? "fiches" : p0 === "widget" ? "reglages" : p0;
   document.querySelectorAll(".bottom-nav a").forEach(a => a.classList.toggle("active", a.dataset.n === nav));
   if (p0 === "reglages") offlineInfo();
-  hydrateImgs(); hydrateArts(); LAST = location.hash;
+  fitStage(); parkStart(); offCard(); fitStage(); hydrateImgs(); hydrateArts(); LAST = location.hash;
   if (scrollTo) document.getElementById(scrollTo)?.scrollIntoView({ block: "start" }); else window.scrollTo(0, same ? y : 0);
   if (p0 === "quiz") { const n = document.getElementById("nextBtn"); if (n && SESSION && SESSION.answered != null) n.focus({ preventScroll: true }); }
 }
 
+const offPacks = () => [...new Set([...Object.values(D.imgs || {}), ...Object.values(GIFT.TAB).map(a => a.pack)])];
+async function offCard() { // application installée : propose une fois de tout garder pour le hors ligne
+  const d = document.getElementById("offcard"); if (!d || !STANDALONE() || SET.offLater || !navigator.onLine || !("caches" in window)) return;
+  try { const c = await caches.open(CNAME), has = new Set((await c.keys()).map(r => new URL(r.url).pathname.split("/").pop())), miss = offPacks().filter(p => !has.has(p + ".js")).length; if (!miss || !document.body.contains(d)) return;
+    d.innerHTML = `<section class="card"><b>Tout garder sans internet ?</b><p class="small">Le jeu, les questions et les fiches marchent déjà hors ligne. Il reste les photos de cours et les tableaux (environ 55 Mo, de préférence en Wi-Fi).</p><div class="actions"><button class="primary" data-act="dlImgs">Tout télécharger</button><button data-act="offLater">Plus tard</button></div></section>`; } catch {}
+}
 async function offlineInfo() { // état réel du stockage hors ligne
   const el = document.getElementById("offst"); if (!el) return;
   try {
-    const packs = [...new Set([...Object.values(D.imgs || {}), ...Object.values(GIFT.TAB).map(a => a.pack)])], c = await caches.open("jadjeudanat-v5"), has = new Set((await c.keys()).map(r => new URL(r.url).pathname.split("/").pop()));
+    const packs = offPacks(), c = await caches.open(CNAME), has = new Set((await c.keys()).map(r => new URL(r.url).pathname.split("/").pop()));
     const core = ["app.js", "questions.js", "style.css"].every(f => has.has(f)), n = packs.filter(p => has.has(p + ".js")).length;
     el.textContent = !core ? "Application pas encore enregistrée : rouvre-la une fois avec internet." : n === packs.length ? "✔ Tout est disponible hors ligne." : `✔ Application disponible hors ligne · photos : ${n}/${packs.length} paquets téléchargés.`;
   } catch { el.textContent = "Hors ligne indisponible dans ce navigateur."; }
@@ -847,10 +1138,9 @@ async function offlineInfo() { // état réel du stockage hors ligne
 // ======================== Actions ========================
 const zoneStart = (z, l) => { l = shuffle(l.map(q => q.id)); if (SET.len < 100) l = l.slice(0, SET.len); startSession("corps", "todo", l, "Zone : " + ZONES[z]); };
 const ACT = {
-  zone: el => { const z = el.dataset.z; ZOPEN = ZOPEN === z && el.dataset.from ? null : z; render(); if (ZOPEN) document.getElementById("z-" + z)?.scrollIntoView({ behavior: "smooth", block: "start" }); },
+  zone: el => { const z = el.dataset.z; ZOPEN = ZOPEN === z && el.dataset.from ? null : z; if (ZOPEN) OPENS.zprog = true; render(); if (ZOPEN) document.getElementById("z-" + z)?.scrollIntoView({ behavior: "smooth", block: "start" }); },
   bview: el => { BODY.view = el.dataset.v; save(K_BODY, BODY); render(); },
   equip: el => { const a = ACC_BY[el.dataset.id]; if (a && has(a)) { wear(a, !isEq(a)); save(K_BODY, BODY); render(); } },
-  tint: () => { BODY.tint = !BODY.tint; save(K_BODY, BODY); render(); },
   off: () => { BODY.eq = {}; WARD.eq = {}; save(K_WARD, WARD); save(K_BODY, BODY); render(); },
   rnd: () => { BODY.eq = {}; WARD.eq = {}; const seen = new Set(), pool = [...BODY.got.map(id => ACC_BY[id]), ...WARD.got.map(id => SHOP.byId[id]).filter(i => i.s)]; for (const a of shuffle(pool)) if (!clash(a.s).some(s => seen.has(s)) && Math.random() < .62) { seen.add(a.s); wear(a, true); } save(K_BODY, BODY); render(); },
   wTab: el => { WTAB = el.dataset.k; render(); },
@@ -861,9 +1151,10 @@ const ACT = {
   gtab: el => { TAB2 = el.dataset.k; render(); },
   gift: el => { DAILY.equipped[TAB2] = el.dataset.id || null; save(K_DAILY, DAILY); render(); },
   gearTab: el => { GTAB = el.dataset.k; render(); },
-  gearEq: el => { const g = GEAR.byId[el.dataset.id]; if (!g || !PET.gear.got.includes(g.id)) return; if (PET.gear.eq[g.s] === g.id) delete PET.gear.eq[g.s]; else PET.gear.eq[g.s] = g.id; save(K_PET, PET); render(); },
-  gearOff: () => { PET.gear.eq = {}; save(K_PET, PET); render(); },
-  gearRnd: () => { PET.gear.eq = {}; for (const g of shuffle(PET.gear.got.map(id => GEAR.byId[id]))) if (!PET.gear.eq[g.s] && Math.random() < .75) PET.gear.eq[g.s] = g.id; save(K_PET, PET); render(); },
+  gearWho: el => { GWHO = el.dataset.k; render(); },
+  gearEq: el => { const g = GEAR.byId[el.dataset.id], q = gearSet(); if (!g || !PET.gear.got.includes(g.id)) return; if (q[g.s] === g.id) delete q[g.s]; else q[g.s] = g.id; save(K_PET, PET); render(); },
+  gearOff: () => { const q = gearSet(); for (const s in q) delete q[s]; save(K_PET, PET); render(); },
+  gearRnd: () => { const q = gearSet(); for (const s in q) delete q[s]; for (const g of shuffle(PET.gear.got.map(id => GEAR.byId[id]))) if (!q[g.s] && Math.random() < .75) q[g.s] = g.id; save(K_PET, PET); render(); },
   playPet: () => {
     if (!ANIMAL_BY_ID[PET.companion]) return; const list = replayable(); if (list.length) return startPlay(list);
     const ko = QS.filter(q => status(q) === "ko");
@@ -875,13 +1166,30 @@ const ACT = {
   galOpen: () => { GALOPEN = true; render(); document.getElementById("gal")?.scrollIntoView({ behavior: "smooth", block: "start" }); },
   expose: el => { if (TAB.got.includes(el.dataset.id)) { TAB.cur = el.dataset.id; save(K_TAB, TAB); } document.querySelector(".modal")?.remove(); render(); toast("Tableau exposé !", "ok"); },
   closeM: () => document.querySelector(".modal")?.remove(),
-  fav: el => { const id = el.dataset.id; if (PET.fav[id]) delete PET.fav[id]; else PET.fav[id] = 1; save(K_PET, PET); document.getElementById("mgrid").innerHTML = menagerieCards(); },
+  fav: el => { const id = el.dataset.id; if (PET.fav[id]) delete PET.fav[id]; else PET.fav[id] = 1; save(K_PET, PET); const g = document.getElementById("mgrid"); if (g) g.innerHTML = menagerieCards(); else { const c = document.getElementById("parkcard"), k = document.getElementById("kgrid"); if (c) c.innerHTML = parkCard(); if (k) k.innerHTML = kidCards(); } },
   mF: el => { MF.f = el.dataset.k; MF.n = 60; render(); },
   mMore: () => { MF.n += 60; document.getElementById("mgrid").innerHTML = menagerieCards(); },
   giftBuy: el => { const r = GIFT.byId[el.dataset.id]; if (!r || DAILY.got.includes(r.id)) return; const W = wallet(), can = W >= r.price;
     modal(`<h2>${esc(r.name)}</h2><div class="tryon">${persoSvg({ vb: r.cat === "decor" ? "-40 -62 480 716" : "60 -70 280 330", cls: "thumb", ...(r.cat === "decor" ? { behind: GIFT.scene(r.v) } : { hair: r.v }) })}</div><p class="big">${r.price} XP</p><p class="small">${can ? `Il te restera ${(W - r.price).toLocaleString("fr")} XP à dépenser. Ton niveau ne change pas.` : `Il te manque ${(r.price - W).toLocaleString("fr")} XP, soit environ ${plural(Math.ceil((r.price - W) / 10), "bonne réponse", "bonnes réponses")}.`}</p><div class="actions center">${can ? `<button class="primary" data-act="giftPay" data-id="${r.id}">Acheter</button>` : ""}<button data-act="closeM">${can ? "Pas maintenant" : "Fermer"}</button></div>`); },
   giftPay: el => { const r = GIFT.byId[el.dataset.id]; if (!r || DAILY.got.includes(r.id) || wallet() < r.price) return; WARD.spent = (WARD.spent || 0) + r.price; save(K_WARD, WARD); DAILY.got.push(r.id); DAILY.equipped[r.cat] = r.id; save(K_DAILY, DAILY); document.querySelector(".modal")?.remove(); render(); toast(`${esc(r.name)} : c'est à toi !`, "ok"); },
-  feedPet: () => { const r = feed(); render(); if (r.ok) { document.querySelectorAll(".petbig .pet-svg,.stagepet .pet-svg").forEach(s => s.classList.add("happy")); } if (r.grew) document.querySelectorAll(".petbig .pet-svg.lg,.stagepet .pet-svg:not(.baby)").forEach(s => s.classList.add("grow")); toast(esc(r.msg), r.baby ? "baby" : r.ok ? "ok" : ""); },
+  feedPet: el => { const id = (el && el.dataset && el.dataset.id) || PET.companion, k = isHuman(id) ? ".kidcard" : ".petcard:not(.kidcard)", s0 = isHuman(id) ? ".stagepet.kidbox" : ".stagepet:not(.kidbox)", r = feed(id); render(); if (r.ok) { document.querySelectorAll(`${k} .petbig .pet-svg,${s0} .pet-svg`).forEach(s => s.classList.add("happy")); } if (r.grew) document.querySelectorAll(`${k} .petbig .pet-svg.lg,${s0} .pet-svg:not(.baby)`).forEach(s => s.classList.add("grow")); toast(esc(r.msg), r.baby ? "baby" : r.ok ? "ok" : ""); },
+  setKid: el => { const id = el.dataset.id; if (!PET.kids.includes(id)) return; PET.kid = PET.kid === id && el.dataset.off ? null : id; save(K_PET, PET); render(); toast(PET.kid ? `Tu gardes ${esc(ANIMAL_BY_ID[id].name)} !` : "De retour à la garderie !", "ok"); },
+  pkTab: el => { PTAB = el.dataset.k; render(); },
+  pkEdit: () => { PK.edit = !PK.edit; PK.isel = -1; PK.sel = null; if (PK.edit) OPENS.pkshop = true; render(); },
+  pkFlip: () => { const i = PET.park.items[PK.isel]; if (!i) return; i.f = i.f ? 0 : 1; parkSave(); parkDraw(); },
+  pkBag: () => { const i = PET.park.items[PK.isel]; if (!i) return; PET.park.items.splice(PK.isel, 1); PET.park.bag[i.k] = bagN(i.k) + 1; PK.isel = -1; parkSave(); render(); toast("Rangé dans ta réserve : tu pourras le reposer gratuitement.", "ok"); },
+  pkBuy: el => { const x = PARC.byId[el.dataset.id]; if (!x) return; if (bagN(x.id)) { if (PET.park.items.length >= PARK_MAX) return placeItem(x.id); PET.park.bag[x.id]--; return placeItem(x.id); } const W = wallet(), can = W >= x.p; modal(`<h2>${esc(x.n)}</h2><div class="pkbig">${PARC.svg(x)}</div><p>💎 <b>${x.p} XP</b> · il te reste ${W.toLocaleString("fr")} XP</p>${can ? "" : `<p class="small">Il te manque ${(x.p - W).toLocaleString("fr")} XP.</p>`}<div class="actions center"><button class="primary" data-act="pkPay" data-id="${x.id}" ${can ? "" : "disabled"}>Acheter et poser</button><button data-act="closeM">Fermer</button></div>`); },
+  pkPay: el => { const x = PARC.byId[el.dataset.id]; if (!x || wallet() < x.p) return; if (PET.park.items.length >= PARK_MAX) return placeItem(x.id); WARD.spent = (WARD.spent || 0) + x.p; save(K_WARD, WARD); document.querySelector(".modal")?.remove(); placeItem(x.id); toast(`${esc(x.n)} : fais glisser pour choisir sa place !`, "ok"); },
+  pkTheme: el => { const x = PARC.themes.find(q => q.id === el.dataset.id); if (!x) return; if (PET.park.themes.includes(x.id)) { PET.park.theme = x.id; parkSave(); return render(); } const W = wallet(), can = W >= x.p; modal(`<h2>${esc(x.n)}</h2><p>Change les couleurs du parc.</p><p>💎 <b>${x.p} XP</b> · il te reste ${W.toLocaleString("fr")} XP</p><div class="actions center"><button class="primary" data-act="pkPayT" data-id="${x.id}" ${can ? "" : "disabled"}>${can ? "Acheter" : `Il te manque ${x.p - W} XP`}</button><button data-act="closeM">Fermer</button></div>`); },
+  pkPayT: el => { const x = PARC.themes.find(q => q.id === el.dataset.id); if (!x || PET.park.themes.includes(x.id) || wallet() < x.p) return; WARD.spent = (WARD.spent || 0) + x.p; save(K_WARD, WARD); PET.park.themes.push(x.id); PET.park.theme = x.id; parkSave(); document.querySelector(".modal")?.remove(); render(); toast(`${esc(x.n)} : le parc a changé de couleurs !`, "ok"); },
+  pkZ: el => parkZoom(+el.dataset.f), pkAll: () => { const cv = parkCv(); PK.z = parkAll(cv); PK.x = PK.W / 2; PK.y = PK.H / 2; parkDraw(); },
+  pkMe: () => { const k = PK.kids.get(PET.kid), cv = parkCv(); if (!k) return; PK.sel = PET.kid; PK.z = Math.max(PK.z, 1.5); PK.x = k.x; PK.y = k.y - 50; parkClamp(cv); document.getElementById("parkcard").innerHTML = parkCard(); parkDraw(); },
+  kMove: () => { KF.move = !KF.move; if (KF.move) { PET.korder = kidOrder(); if ((PET.ksort || "arr") !== "mine") { PET.korder = kidList(true).map(a => a.id); PET.ksort = "mine"; } KF.f = "all"; KF.g = ""; KF.q = ""; save(K_PET, PET); } render(); },
+  kMv: el => { const o = kidOrder(), i = o.indexOf(el.dataset.id), d = +el.dataset.d, j = d < -50 ? 0 : Math.max(0, Math.min(o.length - 1, i + d)); if (i < 0 || i === j) return; o.splice(j, 0, o.splice(i, 1)[0]); PET.korder = o; save(K_PET, PET); document.getElementById("kgrid").innerHTML = kidCards(); },
+  kPark: el => { const id = el.dataset.id; if (!PET.kids.includes(id)) return; if (PET.hid[id]) delete PET.hid[id]; else PET.hid[id] = 1; save(K_PET, PET); render(); },
+  kAll: el => { PET.hid = {}; if (el.dataset.d === "0") PET.kids.forEach(id => { PET.hid[id] = 1; }); save(K_PET, PET); render(); },
+  kG: el => { KF.g = KF.g === el.dataset.k ? "" : el.dataset.k; KF.n = 60; render(); },
+  kF: el => { KF.f = el.dataset.k; KF.n = 60; render(); }, kMore: () => { KF.n += 60; render(); },
   setComp: el => { PET.companion = el.dataset.id; save(K_PET, PET); render(); toast(`${esc(ANIMAL_BY_ID[el.dataset.id].name)} t'accompagne !`, "ok"); },
   zoneQuiz: el => { const z = el.dataset.z; let l = (ZQ[z] || []).filter(q => status(q) !== "ok"); if (!l.length) l = ZQ[z] || []; zoneStart(z, l); },
   zonePool: el => zoneStart(el.dataset.z, (ZQ[el.dataset.z] || []).filter(q => status(q) === el.dataset.pool)),
@@ -891,16 +1199,20 @@ const ACT = {
   toggle: el => { const S = SESSION, i = Number(el.dataset.i); if (!S || S.answered != null) return; S.sel = S.sel.includes(i) ? S.sel.filter(x => x !== i) : [...S.sel, i]; saveSession(); render(); },
   valid: () => { if (SESSION && SESSION.sel && SESSION.sel.length) answer(0); },
   dlImgs: async el => {
-    const packs = [...new Set([...Object.values(D.imgs || {}), ...Object.values(GIFT.TAB).map(a => a.pack)])]; let ok = 0; el.disabled = true;
-    for (const p of packs) { try { const r = await fetch(p + ".js"); if (r.ok) { await r.blob(); ok++; } } catch {} el.textContent = `Téléchargement… ${ok} / ${packs.length}`; }
-    el.textContent = ok === packs.length ? "✔ Tout est disponible hors ligne" : `${packs.length - ok} fichier(s) manquant(s) : vérifie les images-XX.js et tableaux-XX.js sur GitHub`; el.disabled = false; offlineInfo();
+    const packs = offPacks(); let ok = 0; el.disabled = true; const c = await caches.open(CNAME).catch(() => null);
+    for (const p of packs) { try { const u = p + ".js", had = c && await c.match(u); if (had) ok++; else { const r = await fetch(u); if (r.ok) { if (c) await c.put(u, r); else await r.blob(); ok++; } } } catch {} el.textContent = `Téléchargement… ${ok} / ${packs.length}`; }
+    el.textContent = ok === packs.length ? "✔ Tout est disponible hors ligne" : `${packs.length - ok} fichier(s) manquant(s) : réessaie avec une bonne connexion`; el.disabled = false; offlineInfo();
   },
-  next: () => { const S = SESSION; if (!S || S.answered == null) return; document.querySelectorAll(".petpop").forEach(x => x.remove()); Object.assign(S, { pos: S.pos + 1, answered: null, opts: null, sel: null, ev: null, say: "", lvUp: 0, gain: 0 }); if (S.pos >= S.ids.length) endPlay(S); saveSession(); render(); window.scrollTo(0, 0); },
+  offLater: () => { SET.offLater = true; save(K_SET, SET); const d = document.getElementById("offcard"); if (d) d.innerHTML = ""; },
+  next: () => { const S = SESSION; if (!S || S.answered == null) return; document.querySelectorAll(".petpop").forEach(x => x.remove()); Object.assign(S, { pos: S.pos + 1, answered: null, opts: null, sel: null, ev: null, say: "", lvUp: 0, gain: 0, undo: null, wiped: false }); if (S.pos >= S.ids.length) { endPlay(S); endAsk(S); } saveSession(); render(); window.scrollTo(0, 0); },
   stop: () => { // quitter en cours de route : ce qui est répondu est gardé
     const S = SESSION; if (!S) return; const n = S.pos + (S.answered != null ? 1 : 0), back = "#/" + (S.tab || "g");
     if (!n) { SESSION = null; saveSession(); location.hash = back; return; }
-    S.ids = S.ids.slice(0, n); S.pos = n; endPlay(S); saveSession(); render(); window.scrollTo(0, 0);
+    S.ids = S.ids.slice(0, n); S.pos = n; endPlay(S); endAsk(S); saveSession(); render(); window.scrollTo(0, 0);
   },
+  install: async () => { if (!INSTALL) return; const e = INSTALL; INSTALL = null; try { await e.prompt(); await e.userChoice; } catch {} render(); },
+  share: async () => { const url = location.href.split("#")[0]; try { if (navigator.share) { await navigator.share({ title: "Révisions anat", url }); return; } await navigator.clipboard.writeText(url); toast("Lien copié !", "ok"); } catch (e) { if (e && e.name !== "AbortError") toast(esc(url)); } },
+  ask: () => startAsk(), erase: () => eraseError(),
   redoKo: () => startSession(SESSION.tab, "ko", shuffle(SESSION.wrong.slice()), "Erreurs de la série"),
   flag: () => { const id = SESSION.ids[SESSION.pos]; if (FLAGS[id]) delete FLAGS[id]; else FLAGS[id] = Date.now(); save(K_FLAG, FLAGS); render(); toast(FLAGS[id] ? "Question signalée : retrouve-la dans Réglages." : "Signalement retiré."); },
   ficheQuiz: el => { const f = D.fiches[el.dataset.name]; startSession(f && TABS.some(t => t.cat === f.cat) ? f.cat : "g", "todo", shuffle((QBY[el.dataset.name] || []).map(q => q.id)), el.dataset.name); },
@@ -914,7 +1226,9 @@ const ACT = {
   copyFlags: async () => { const txt = Object.keys(FLAGS).map(id => BY_ID[id]).filter(Boolean).map(q => `- [${q.id}] ${q.q} → ${q.a}`).join("\n"); try { await navigator.clipboard.writeText(txt); MSG = "Liste copiée : tu peux la coller dans un message."; } catch { MSG = "Copie impossible sur ce navigateur."; } render(); },
   export: () => {
     const data = { app: "revisions-anat", version: 2, exportedAt: new Date().toISOString(), progress: PROG, flags: FLAGS, corrections: OVR, body: BODY, pet: PET, daily: DAILY, tableaux: TAB, garderobe: WARD, settings: SET };
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" })); a.download = `revisions-anat-progression-${todayKey()}.json`;
+    const nm = `revisions-anat-progression-${todayKey()}.json`, txt = JSON.stringify(data);
+    if (IOS) try { const f = new File([txt], nm, { type: "application/json" }); if (navigator.canShare && navigator.canShare({ files: [f] })) { navigator.share({ files: [f] }).then(() => { MSG = "Progression exportée."; render(); }).catch(() => {}); return; } } catch {}
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type: "application/json" })); a.download = nm;
     document.body.appendChild(a); a.click(); a.remove(); MSG = "Fichier enregistré dans tes Téléchargements."; render();
   },
   import: () => document.getElementById("importFile").click(),
@@ -931,9 +1245,10 @@ document.addEventListener("input", e => {
     const v = e.target.value, pos = e.target.selectionStart, tb = e.target.dataset.tab;
     history.replaceState(null, "", (tb ? "#/rev/" + tb + "/" : "#/fiches/") + encodeURIComponent(v)); LAST = location.hash;
     $("#app").innerHTML = tb ? viewRev(tb, v) : viewFiches(v); const s = document.getElementById("search"); s.focus(); try { s.setSelectionRange(pos, pos); } catch {}
-  } else if (e.target.id === "msearch") { MF.q = e.target.value; MF.n = 60; document.getElementById("mgrid").innerHTML = menagerieCards(); }
+  } else if (e.target.id === "ksearch") { KF.q = e.target.value; KF.n = 60; document.getElementById("kgrid").innerHTML = kidCards(); } else if (e.target.id === "msearch") { MF.q = e.target.value; MF.n = 60; document.getElementById("mgrid").innerHTML = menagerieCards(); }
 });
 document.addEventListener("change", async e => {
+  if (e.target.id === "ksort") { PET.ksort = e.target.value; if (PET.ksort !== "mine") KF.move = false; KF.n = 60; save(K_PET, PET); render(); return; }
   if (e.target.id === "msp" || e.target.id === "msort") { MF[e.target.id === "msp" ? "sp" : "sort"] = e.target.value; MF.n = 60; document.getElementById("mgrid").innerHTML = menagerieCards(); return; }
   if (e.target.id !== "importFile") return;
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
@@ -963,7 +1278,7 @@ document.addEventListener("keydown", e => {
 // reprise de la série laissée en cours, même après fermeture de l'application
 { const s = load(K_SESS, null); if (s && Array.isArray(s.ids) && s.ids.every(id => BY_ID[id]) && s.pos < s.ids.length) SESSION = s; }
 window.addEventListener("hashchange", render);
-document.addEventListener("toggle", e => { if (e.target.id === "gal") GALOPEN = e.target.open; if (e.target.id in OPENS) OPENS[e.target.id] = e.target.open; if (e.target.open) { hydrateImgs(); hydrateArts(); } }, true);
+document.addEventListener("toggle", e => { if (e.target.id === "gal") GALOPEN = e.target.open; if (e.target.id in OPENS) { const was = OPENS[e.target.id]; OPENS[e.target.id] = e.target.open; if (e.target.open && !was && e.target.childElementCount < 2) { render(); return; } } if (e.target.open) { hydrateImgs(); hydrateArts(); } }, true);
 if (WARD.spent === null) WARD.spent = Math.max(0, xp() - START_XP); save(K_WARD, WARD);
 SEEN = load(K_SEEN, null); if (!Array.isArray(SEEN)) markSeen();
 const retro = syncLevel(); save(K_DAILY, DAILY); save(K_TAB, TAB);

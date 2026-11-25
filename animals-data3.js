@@ -443,4 +443,64 @@ Canard de bain|bath|ro or ve tu vi me`);
 Poule||*
 Poule houppée|puff|*
 Poussin|chick|*`);
+
+  // ======================== 100 ANIMAUX DE PLUS (12 espèces nouvelles) ========================
+  const NEUFS = `
+sa:sable|e3c193|7d5a34|fff4e0
+ca:caramel|d9985a|7a4418|fde8d0
+gr:gris|a5a8b3|474b58|f1f2f5
+no:noir|46424f|1a1720|b5b0bd
+br:brun|8f6848|452c19|ecd6bf
+ro:roux|cf7a42|6f3413|fbe0c9
+bl:blanc|fbf8f4|9a8f95|ffffff
+rs:rosé|f5c3ca|a0606f|fff1f2
+li:lilas|cfc0ec|6a52a0|f7f2ff
+me:menthe|bfe8d2|41886a|f3fff8
+bu:bleu|9db6de|3d5890|edf3fc
+do:doré|eec468|8f651c|fff3d5`;
+  G("meerkat", "Suricate", "meerkat", 10, NEUFS, `
+Suricate||sa ca gr ro br no bl li rs me`);
+  G("armadillo", "Tatou et pangolin", "armadillo", 20, NEUFS, `
+Tatou||sa gr br rs li me bu do no ca
+Pangolin|scale|br ca gr sa no do li bu rs me`);
+  G("anteater", "Fourmilier", "anteater", 10, NEUFS, `
+Fourmilier||gr br ca no sa bl li ro bu do`);
+  G("opossum", "Marsupial", "opossum", 22, NEUFS, `
+Opossum||gr no br sa li rs bu ro
+Diable de Tasmanie|devil|no br gr ro li bu`);
+  G("wombat", "Marsupial", "wombat", 22, NEUFS, `
+Wombat||br gr sa ca no rs li bl`);
+  G("hyena", "Hyène", "hyena", 8, NEUFS, `
+Hyène tachetée||sa ca gr br
+Hyène rayée|stripe|gr do ro li`);
+  G("kiwi", "Kiwi et casoar", "kiwi", 10, NEUFS, `
+Kiwi||br ca gr no ro sa rs li me do`);
+  G("cassowary", "Kiwi et casoar", "cassowary", 16, `
+bl:bleu|3a3744|15131b|5fa5f0
+vi:violet|3f3648|17121d|a987ee
+tu:turquoise|33424a|121a1e|55cfc4
+ro:rosé|4a3a3f|1d1417|f99ab5
+or:orange|40352f|191310|f9a85c
+ve:vert|343f36|121a14|86d67c`, `
+Casoar||*`);
+  G("nudi", "Limace de mer", "nudi", 8, `
+bl:bleue|5f9ff0|f9b93c|dcecff
+rs:rose|f99fc0|8f5fd8|fff0f6
+ja:jaune|fbdb5c|3f8fd0|fffbe0
+vi:violette|a983ec|f98a5c|f1e8ff
+ve:verte|86d98c|e8608f|effce9
+or:orange|fba45c|5f62d8|fff0dc
+bc:blanche|fdfaf8|f0607f|ffffff
+tu:turquoise|5fd0c9|f9d04c|e0faf6`, `
+Limace de mer||*`);
+  G("lobster", "Homard", "lobster", 6, `
+ro:rouge|e8564a|8f1f1c|ffd5cb
+bu:bleu|5f8ff0|22489c|dce8ff
+or:orange|f9983c|a8560f|ffe6c5
+vi:violet|a87ae8|4a2a94|eadcff
+do:doré|f0c850|94681a|fff5cc
+rs:rose|f99fc0|b0507c|ffe6ef`, `
+Homard||*`);
+  // noms portés par deux espèces : on précise (l'identifiant, lui, ne change jamais)
+  window.ANIMALS_DATA.forEach(a => { if (a.kind === "redpanda" && /^Panda (?!roux)/.test(a.name)) a.name = "Petit panda" + a.name.slice(5); if (a.kind === "butterfly" && /^Paon (?!du|de)/.test(a.name)) a.name = "Papillon paon" + a.name.slice(4); });
 })();

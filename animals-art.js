@@ -658,10 +658,87 @@
       hm: o.lava ? N("M66,52 l6,12 l-8,8 M136,52 l-6,12 l8,8", "#fba03c", 3) : "", muzzle: E(100, 109, 28, 17, lt(a.hex, .18)), face: eyes(a, 26, 80, 12.5, b, o.lava ? "#f9903c" : "#d9a52a") + two(E(91, 102, 3, 2.4, L)) + N("M78,112 Q100,128 122,112", L, 2.8) + two(P("M86,116 l4,7 l4,-5Z", "#fff", "#a8a89a", 1)) + blush(44, 102), top: P("M90,46 L95,30 L100,42 L105,30 L110,46Z", o.crystal ? "#b5ecff" : w, L, 2) + (o.crystal ? spark(160, 40, 7) + spark(34, 46, 5) : "") });
   };
 
+  // ======================== DOUZE ESPÈCES DE PLUS ========================
+  const scales = (list, f, s) => list.map(([x, y, r]) => P(`M${x - r},${y - r * .5} Q${x - r},${y + r} ${x},${y + r * 1.1} Q${x + r},${y + r} ${x + r},${y - r * .5} Q${x},${y - r} ${x - r},${y - r * .5}Z`, f, s, 1.6)).join("");
+  K.meerkat = (a, b) => {
+    const L = line(a), w = a.belly, d = a.dark;
+    return quad(a, b, { ears: two(VE(49, 76, 11, 13, mix(d, "#2a1f24", .3), L)), tail: N("M128,180 C158,188 180,166 180,134", L, 13) + N("M128,180 C158,188 180,166 180,134", a.hex, 8.5) + N("M180,146 V134", d, 9), bellyC: w,
+      hm: two(E(77, 86, 15, 15, d, "", 0, rot(-18, 77, 86) + ' opacity=".9"')) + E(100, 110, 30, 22, w) + E(100, 50, 16, 10, mix(a.hex, d, .25), "", 0, 'opacity=".6"'),
+      muzzle: E(100, 106, 18, 15, lt(w, .3)), face: eyes(a, 23, 86, 10.5, b, "#5a3a1c") + nose(99, 7.5, 5.4, "#33242c") + N("M100,104 V109", "#33242c", 2) + smile(109, 8, "#33242c") + whisk(106) + blush(40, 104),
+      chest: b ? "" : two(V("M72,120 C62,136 74,152 92,146 C96,140 92,134 86,134 C80,132 80,126 82,120Z", a.hex, L, 2.2) + N("M86,146 v-5 M91,145 v-5", L, 1.4)), noLoaf: 1 });
+  };
+  K.armadillo = (a, b) => {
+    const L = line(a), w = a.belly, d = a.dark, pg = a.o.scale, sh = mix(a.hex, d, .28);
+    const dome = !pg ? "M22,180 C12,116 50,78 100,78 C150,78 188,116 178,180 Q160,192 134,192 H66 Q40,192 22,180Z" : "M34,178 C28,126 58,98 100,98 C142,98 172,126 166,178 Q156,190 134,190 H66 Q44,190 34,178Z";
+    const rows = []; for (let r = 0; r < 5; r++) for (let i = 0; i < 7 - (r === 0 ? 2 : 0); i++) rows.push([100 + (i - (6 - (r === 0 ? 2 : 0)) / 2) * 21 + (r % 2 ? 10 : 0), 112 + r * 17, 11.5]);
+    const shell = V(dome, sh, L) + (pg ? `<g clip-path="url(#cLoaf)">${G("translate(0 0)", scales(rows, mix(a.hex, d, .12), mix(d, a.hex, .25)))}</g>` : N("M30,150 Q100,96 170,150 M28,168 Q100,120 172,168 M42,128 Q100,78 158,128", mix(d, sh, .2), 2.8) + [[38, 152], [46, 142], [56, 134], [144, 134], [154, 142], [162, 152], [34, 168], [166, 168]].map(([x, y]) => N(`M${x - 5},${y + 6} l5,-10 l5,10`, mix(d, sh, .35), 1.8)).join(""));
+    const tail = pg ? V("M126,184 C166,198 200,172 190,130 C180,120 168,128 168,142 C166,158 152,164 132,164Z", sh, L) + scales([[182, 138, 9], [184, 154, 9], [174, 168, 9], [160, 176, 9], [170, 152, 8]], mix(a.hex, d, .12), mix(d, a.hex, .25)) : N("M134,184 C164,192 184,180 190,156", L, 14) + N("M134,184 C164,192 184,180 190,156", a.hex, 9) + N("M152,182 l3,8 M164,178 l6,7 M174,170 l8,4", d, 2.4);
+    return quad(a, b, { head: pg ? LONG : "M52,84 C50,54 70,38 100,38 C130,38 150,54 148,84 C146,108 128,124 100,124 C72,124 54,108 52,84Z", clip: pg ? "cL" : "cH", back: b ? G("translate(100 190) scale(.94) translate(-100 -190)", shell) : shell, tail, ears: pg ? two(VE(64, 72, 8, 9, mix(w, "#f0a5a0", .3), L)) : two(V("M70,52 C56,44 46,26 50,14 C62,10 76,20 84,42Z", a.hex, L) + P("M70,46 C60,39 54,27 56,20 C64,19 73,27 78,40Z", "#f5b3b5", "", 0)),
+      hm: (pg ? scales([[80, 48, 10], [100, 44, 10], [120, 48, 10], [72, 60, 9], [90, 58, 10], [110, 58, 10], [128, 60, 9]], mix(a.hex, d, .12), mix(d, a.hex, .25)) : P("M40,20 H160 V64 Q132,72 118,68 Q100,84 82,68 Q68,72 40,64Z", sh, mix(d, sh, .3), 2) + N("M60,56 Q100,36 140,56 M72,46 L80,66 M90,40 L92,70 M110,40 L108,70 M128,46 L120,66", mix(d, sh, .35), 1.8)) + (pg ? E(100, 106, 32, 34, w) : ""), bellyC: w,
+      muzzle: pg ? V("M88,94 C88,86 112,86 112,94 C112,114 108,124 100,124 C92,124 88,114 88,94Z", w, "", 0) : V("M82,90 C84,80 116,80 118,90 C118,116 112,132 100,132 C88,132 82,116 82,90Z", lt(a.hex, .28), L, 2),
+      face: eyes(a, pg ? 21 : 25, 82, 10.5, b, "#4a3020") + nose(pg ? 112 : 120, 6.5, 4.8, "#4a3540") + smile(pg ? 119 : 126, 5, "#4a3540") + blush(pg ? 32 : 40, 102), noLoaf: 1 });
+  };
+  K.anteater = (a, b) => {
+    const L = line(a), w = a.belly, d = a.dark, sn = b ? 128 : 148;
+    const tl = "M122,184 C170,202 212,150 186,82 C176,62 148,66 150,92 C154,128 148,146 124,158Z";
+    return quad(a, b, { head: "M54,82 C52,54 72,40 100,40 C128,40 148,54 146,82 C144,104 126,116 100,116 C74,116 56,104 54,82Z", ears: roundEar(a, 60, 52, 11, "#f5b3b5"), tail: V(tl, mix(a.hex, d, .45), L) + N("M138,174 C172,170 184,130 172,90 M150,180 C184,168 196,128 182,92 M144,160 C162,150 168,120 164,96", mix(d, a.hex, .25), 3, 'opacity=".7"'), bellyC: mix(a.hex, w, .6),
+      bodyTop: clip("cB", two(P("M60,112 C76,124 84,140 84,164 L72,170 C72,146 64,130 50,124Z", d) + N("M62,112 C78,124 87,142 87,164", w, 3))),
+      face: eyes(a, 25, 80, 10.5, b, "#3f2a1c") + blush(38, 98),
+      top: V(`M82,86 C84,74 116,74 118,86 C121,${sn - 28} 114,${sn} 100,${sn + 2} C86,${sn} 79,${sn - 28} 82,86Z`, lt(mix(a.hex, w, .35), .05), L, 2.2) + E(100, sn - 5, 8, 5.6, "#33242c") + E(97, sn - 7, 2.4, 1.6, "#fff", "", 0, 'opacity=".7"') + (b ? "" : N(`M100,${sn + 1} q7,10 -2,18 q-6,6 0,11`, "#b0475e", 4.6) + N(`M100,${sn + 1} q7,10 -2,18 q-6,6 0,11`, "#f7889b", 3)), noLoaf: 1 });
+  };
+  K.opossum = (a, b) => {
+    const o = a.o, L = line(a), w = a.belly, d = a.dark;
+    if (o.devil) return quad(a, b, { head: "M46,88 C44,58 68,42 100,42 C132,42 156,58 154,88 C154,112 130,128 100,128 C70,128 46,112 46,88Z", clip: "cF", ears: two(VE(58, 50, 19, 20, a.hex, L) + E(59, 52, 12, 13, "#f08f95")), tail: V("M128,180 C160,188 184,168 182,140 C172,130 158,138 152,150 C146,160 138,164 128,164Z", a.hex, L), bellyC: mix(a.hex, w, .18), bodyTop: P("M66,112 C78,132 122,132 134,112 C134,138 116,146 100,146 C84,146 66,138 66,112Z", w, "", 0),
+      muzzle: E(100, 108, 24, 17, mix(a.hex, "#f0a5a0", .35)), face: eyes(a, 25, 84, 10.5, b, "#7a4a2a") + nose(100, 8, 5.6, "#3a2228") + N("M82,112 Q100,126 118,112", "#2a1a1e", 2.6) + (b ? "" : two(P("M88,115 l3,7 l3.500,-5Z", "#fff", "#a8a0a5", 1))) + whisk(108) + blush(42, 104) });
+    return quad(a, b, { head: HEADF, clip: "cF", ears: two(VE(58, 48, 18, 19, d, L) + E(54, 40, 10, 8, "#f7b5c0", "", 0, rot(-30, 54, 40))), tail: N("M128,180 C170,194 196,160 180,130 C168,112 146,124 154,142 C160,152 172,146 168,138", dk("#f2a5b0", .35), 12) + N("M128,180 C170,194 196,160 180,130 C168,112 146,124 154,142 C160,152 172,146 168,138", "#f2b5bd", 8), bellyC: w,
+      hm: P("M100,62 C86,50 58,58 52,90 C52,122 84,132 100,132 C116,132 148,122 148,90 C142,58 114,50 100,62Z", w) + P("M94,34 H106 L102,72 Q100,76 98,72Z", d, "", 0, 'opacity=".55"') + two(E(77, 84, 13, 12, d, "", 0, 'opacity=".45"')), paw: "#f2b5bd",
+      muzzle: E(100, 108, 17, 15, lt(w, .4)), face: eyes(a, 23, 84, 10.5, b, "#2a1f2a") + nose(103, 7.5, 5.4, "#f08a9c") + smile(112, 8) + whisk(108) + blush(40, 104) });
+  };
+  K.wombat = (a, b) => {
+    const L = line(a), w = a.belly;
+    return quad(a, b, { head: "M40,88 C38,60 64,44 100,44 C136,44 162,60 160,88 C160,114 134,128 100,128 C66,128 40,114 40,88Z", clip: "cF", ears: two(V("M58,62 C48,52 46,38 54,32 C66,34 76,42 80,50Z", a.hex, L) + P("M59,56 C54,50 53,42 56,39 C63,41 69,46 72,51Z", "#f5b3b5", "", 0)), tail: "", body: "M66,110 C40,130 36,164 52,182 Q100,196 148,182 C164,164 160,130 134,110Z", bellyC: mix(a.hex, w, .7),
+      muzzle: E(100, 106, 34, 20, mix(a.hex, w, .75)), face: eyes(a, 30, 82, 10, b, "#4a3020") + V("M84,94 C84,84 116,84 116,94 C116,104 108,108 100,108 C92,108 84,104 84,94Z", mix(a.dark, "#2a2028", .5), "#241a20", 2) + E(95, 91, 5, 2.6, "#fff", "", 0, 'opacity=".4"') + N("M100,108 V112", "#33242c", 2) + smile(112, 8, "#33242c") + whisk(110) + blush(46, 104) });
+  };
+  K.hyena = (a, b) => {
+    const L = line(a), w = a.belly, d = a.dark;
+    return quad(a, b, { head: HEADF, clip: "cF", behind: b ? "" : P("M74,52 L70,30 L82,36 L86,18 L96,30 L102,12 L108,30 L118,20 L120,38 L132,32 L126,54Z", d, L, 2), ears: roundEar(a, 52, 50, 19, mix(d, "#f0a5a0", .4)), tail: V("M128,178 C158,186 180,168 180,142 C176,126 160,128 158,142 C156,156 144,162 126,160Z", a.hex, L) + P("M180,142 C176,126 160,128 158,142 Q168,150 180,142Z", d), bellyC: w,
+      hm: a.o.stripe ? two(N("M50,82 Q62,82 70,88 M48,98 Q60,98 70,102 M94,38 Q95,48 97,54", d, 4.4)) : [[66, 62], [84, 50], [116, 50], [134, 62], [56, 84], [144, 84], [100, 60]].map(([x, y]) => E(x, y, 4, 4.6, d, "", 0, 'opacity=".75"')).join(""),
+      bodyTop: clip("cB", a.o.stripe ? two(N("M52,132 Q68,134 78,128 M50,150 Q66,154 80,148 M54,168 Q68,172 80,166", d, 5)) : [[66, 130], [58, 150], [70, 168], [134, 130], [142, 150], [130, 168], [84, 120], [116, 120]].map(([x, y]) => E(x, y, 5, 5.600, d, "", 0, 'opacity=".75"')).join("")),
+      muzzle: E(100, 108, 25, 18, mix(d, a.hex, .25)), face: eyes(a, 25, 84, 10.5, b, "#8a5a24") + nose(99, 8.5, 6, "#1f161b") + P("M82,108 Q100,114 118,108 Q116,126 100,126 Q84,126 82,108Z", "#a8324a", "#2a1a1e", 1.8) + P("M85,109.500 l4,6 l4,-4.500 M107,111 l4,4.500 l4,-6", "#fff", "#a8a0a5", 1) + E(100, 121, 8, 4, "#ff8fa3") + blush(42, 102) });
+  };
+  K.kiwi = (a, b) => {
+    const L = line(a), w = a.belly, d = a.dark, h = []; for (let r = 0; r < 5; r++) for (let i = 0; i < 6; i++) h.push(`M${62 + i * 15 + (r % 2 ? 7 : 0)},${112 + r * 14} q-2,7 1,11`);
+    const s = two(N("M80,170 v14 m0,0 l-11,5 m11,-5 l0,7 m0,-7 l9,5", dk("#d9a06a", .35), 6.4) + N("M80,170 v14 m0,0 l-11,5 m11,-5 l0,7 m0,-7 l9,5", "#e8b07a", 4)) + V("M100,74 C146,74 172,104 168,138 C164,168 134,180 100,180 C66,180 36,168 32,138 C28,104 54,74 100,74Z", a.hex, L) + E(100, 152, 38, 24, w, "", 0, 'opacity=".65"') + N(h.join(" "), d, 2.2, 'opacity=".55"') + bspot(a)
+      + V("M54,82 C52,50 72,32 100,32 C128,32 148,50 146,82 C144,106 124,118 100,118 C76,118 56,106 54,82Z", a.hex, L) + N("M84,36 q-4,-10 -10,-12 M100,32 V18 M116,36 q4,-10 10,-12", L, 3) + N("M70,52 q4,6 2,10 M130,52 q-4,6 -2,10 M88,46 q2,6 0,10 M112,46 q-2,6 0,10", d, 2, 'opacity=".5"') + eyes(a, 24, 78, 11, b, "#3f2a1c") + V(`M92,90 Q100,82 108,90 L103,${b ? 122 : 140} Q100,${b ? 127 : 147} 97,${b ? 122 : 140}Z`, "#f0c98a", "#8f6230", 2.2) + E(98, b ? 118 : 136, 1, 1.800, "#6b4420") + blush(36, 98);
+    return b ? G("translate(100 190) scale(.84) translate(-100 -190)", s) : s;
+  };
+  K.cassowary = (a, b) => {
+    const L = line(a), d = a.dark, sk = a.belly;
+    const m = P("M30,20 H170 V104 Q146,118 132,108 Q118,122 100,110 Q82,122 68,108 Q54,118 30,104Z", b ? mix(a.hex, sk, .45) : sk) + [[78, 136], [100, 132], [122, 136], [70, 152], [90, 150], [110, 150], [130, 152], [84, 166], [116, 166]].map(([x, y]) => N(`M${x},${y} q-2,8 1,12`, lt(a.hex, .25), 2.4, 'opacity=".6"')).join("");
+    const inner = two(N("M82,172 v12 m0,0 l-11,5 m11,-5 l0,7 m0,-7 l9,5", dk("#b5a58a", .4), 6.4) + N("M82,172 v12 m0,0 l-11,5 m11,-5 l0,7 m0,-7 l9,5", "#c9b99a", 4)) + G("translate(0 0)", bird(a, b, { perch: 0, feet: 0, m, wing: mix(a.hex, d, .5), tail: V("M118,164 C144,164 168,172 172,186 C150,194 126,190 106,178Z", mix(a.hex, d, .4), L), crest: b ? "" : V("M82,46 C80,22 94,2 110,4 C122,14 124,34 118,48Z", "#d9b06a", "#7d5a24", 2.4) + N("M92,40 Q94,20 106,10", "#fff", 3, 'opacity=".4"'), beak: V("M88,92 Q100,82 112,92 Q110,112 100,116 Q90,112 88,92Z", "#4a4350", "#241f2a", 2), iris: "#d9702a", top: b ? "" : two(V("M92,112 C84,120 84,136 91,140 C98,136 98,122 98,114Z", "#e8484f", "#8f1f2c", 2)) }));
+    return inner;
+  };
+  K.nudi = (a, b) => {
+    const L = line(a), w = a.belly, d = a.dark;
+    const gill = [-58, -34, -12, 12, 36].map((r, i) => G(`rotate(${r} 146 122)`, V("M146,122 C136,100 138,78 146,66 C154,78 156,100 146,122Z", i % 2 ? d : mix(d, "#ffffff", .25), dk(d, .35), 2) + N("M146,114 V80 M146,100 l-5,-6 M146,100 l5,-6", "#fff", 1.6, 'opacity=".6"'))).join("");
+    const s = gill + V("M10,166 q8,-12 16,-4 q8,-12 18,-6 q10,-12 20,-6 q10,-10 20,-4 q10,-10 20,-4 q10,-10 20,-2 q10,-8 20,0 q12,-6 20,4 q14,-4 18,10 q10,6 4,18 q-10,16 -86,16 q-80,0 -88,-12 q-6,-6 -2,-14Z", w, L, 2.4) + V("M22,164 C22,130 60,114 108,114 C150,114 176,138 180,164 C172,180 36,182 22,164Z", a.hex, L) + [[112, 130, 6], [134, 140, 7], [154, 156, 5], [122, 156, 5], [100, 148, 4.4], [144, 128, 4]].map(([x, y, r]) => E(x, y, r + 2.400, r + 1.600, w) + E(x, y, r * .62, r * .55, d)).join("")
+      + V("M54,64 C46,50 40,34 44,24 C54,24 62,42 68,58Z", d, dk(d, .35), 2.2) + V("M92,58 C92,42 98,26 106,22 C114,32 110,50 104,64Z", d, dk(d, .35), 2.2) + N("M48,36 l8,-3 M52,46 l9,-4 M100,38 l10,3 M98,48 l10,3", "#fff", 2, 'opacity=".6"') + V("M22,110 C18,74 46,54 78,54 C110,54 136,74 132,110 C130,138 104,150 76,150 C48,150 24,138 22,110Z", a.hex, L) + E(76, 130, 34, 15, w, "", 0, 'opacity=".6"') + [[42, 72, 4.400], [60, 64, 3.400], [98, 64, 4], [114, 78, 4.400]].map(([x, y, r]) => E(x, y, r, r * .85, w)).join("")
+      + eye(54, 100, 13, "#3a2a45", b) + eye(99, 100, 13, "#3a2a45", b) + N("M66,118 Q76.500,130 87,118", L, 2.8) + E(38, 118, 9, 6, "url(#aBl)") + E(115, 118, 9, 6, "url(#aBl)");
+    return b ? G("translate(100 190) scale(.82) translate(-100 -190)", s) : s;
+  };
+  K.lobster = (a, b) => {
+    const L = line(a), w = a.belly, d = a.dark;
+    const claw = V("M34,96 C6,96 -2,56 18,36 C24,48 30,54 36,56 C38,48 44,38 54,34 C68,52 64,90 34,96Z", a.hex, L) + N("M36,58 Q36,70 32,78", L, 2.200);
+    const s = two(N("M84,50 C70,26 46,18 22,22", L, 4.4) + N("M84,50 C70,26 46,18 22,22", a.hex, 2.4) + N("M58,132 q-20,4 -28,18 M58,146 q-18,6 -24,22 M62,160 q-14,8 -16,22", L, 8) + N("M58,132 q-20,4 -28,18 M58,146 q-18,6 -24,22 M62,160 q-14,8 -16,22", a.hex, 5) + N("M62,118 Q36,118 34,94", L, 14) + N("M62,118 Q36,118 34,94", a.hex, 10) + (b ? G("translate(34 96) scale(.8) translate(-34 -96)", claw) : claw))
+      + two(V("M100,178 C84,172 70,178 66,192 C78,200 92,198 100,190Z", mix(a.hex, d, .2), L, 2.2)) + V("M92,176 H108 L112,196 Q100,202 88,196Z", a.hex, L, 2.2) + V("M62,126 C60,158 78,184 100,184 C122,184 140,158 138,126Z", a.hex, L) + N("M64,142 Q100,156 136,142 M69,156 Q100,170 131,156 M78,170 Q100,180 122,170", mix(d, a.hex, .2), 2.8) + E(100, 160, 16, 14, w, "", 0, 'opacity=".35"')
+      + two(N("M80,62 V44", L, 8) + N("M80,62 V44", a.hex, 5)) + V("M48,100 C46,70 70,54 100,54 C130,54 154,70 152,100 C152,126 130,140 100,140 C70,140 48,126 48,100Z", a.hex, L) + [[72, 72, 4], [88, 66, 3], [124, 70, 4]].map(([x, y, r]) => E(x, y, r, r * .8, w, "", 0, 'opacity=".7"')).join("") + eye(78, 94, 13, "#2f2035", b) + eye(122, 94, 13, "#2f2035", b) + N("M88,116 Q100,128 112,116", L, 2.8) + blush(38, 114, 11, 7);
+    return b ? G("translate(100 190) scale(.84) translate(-100 -190)", s) : s;
+  };
+
   // ---------- Assemblage ----------
   const ANIMALS = window.ANIMALS_DATA;
   // taille relative de chaque espèce (un éléphant est plus grand qu'une souris, sans exagérer)
-  const SIZE = { insect: .74, butterfly: .78, mouse: .8, hamster: .8, songbird: .82, bat: .84, frog: .84, hedgehog: .86, guinea: .86, squirrel: .86, fish: .86, lizard: .88, axolotl: .86, pigeon: .88, parrot: .88, owl: .9, ferret: .9, chicken: .92, duck: .94, rabbit: .92, snake: .96, turtle: .98, cat: .98, penguin: 1, otter: .96, raccoon: .98, koala: .98, redpanda: .96, monkey: 1, platypus: .96, fox: 1, dog: 1, raptor: 1.02, wolf: 1.06, sheep: 1.04, goat: 1.04, pig: 1.04, roo: 1.1, wader: 1.1, sloth: 1, deer: 1.12, crocodile: 1.12, bigcat: 1.14, llama: 1.14, bear: 1.18, cow: 1.2, horse: 1.22, hippo: 1.22, sea: 1.1, dino: 1.28, dragon: 1.24, giraffe: 1.34, elephant: 1.34 };
+  const SIZE = { insect: .74, butterfly: .78, mouse: .8, hamster: .8, songbird: .82, bat: .84, frog: .84, hedgehog: .86, guinea: .86, squirrel: .86, fish: .86, lizard: .88, axolotl: .86, pigeon: .88, parrot: .88, owl: .9, ferret: .9, chicken: .92, duck: .94, rabbit: .92, snake: .96, turtle: .98, cat: .98, penguin: 1, otter: .96, raccoon: .98, koala: .98, redpanda: .96, monkey: 1, platypus: .96, fox: 1, dog: 1, raptor: 1.02, wolf: 1.06, sheep: 1.04, goat: 1.04, pig: 1.04, roo: 1.1, wader: 1.1, sloth: 1, deer: 1.12, crocodile: 1.12, bigcat: 1.14, llama: 1.14, bear: 1.18, cow: 1.2, horse: 1.22, hippo: 1.22, sea: 1.1, dino: 1.28, dragon: 1.24, giraffe: 1.34, elephant: 1.34, meerkat: .9, armadillo: .94, anteater: 1.08, opossum: .92, wombat: 1, hyena: 1.06, kiwi: .88, cassowary: 1.12, nudi: .84, lobster: .9 };
   const size = a => { let z = a.rate ? .9 : SIZE[a.kind] || 1; const o = a.o || {}; if (o.whale) z = 1.36; if (o.shark) z = 1.2; if (o.big) z *= 1.08; if (o.short || o.small) z *= .9; return Math.round(z * 100) / 100; };
   const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; };
   // Un bébé ressemble à son parent sans être sa copie : sens, pose, regard, sourire et tache changent.
@@ -672,11 +749,11 @@
   function render(a, cls = "pet-svg", opts = {}, gearIds, escFn) {
     if (!a) return "";
     const b = !!opts.isBaby, esc = escFn || (x => x), n = (b ? "Bébé " : "") + a.name;
-    const g = !b && gearIds && gearIds.length && window.PETGEAR ? PETGEAR.layers(gearIds, a) : { b: "", f: "" };
+    const g = !b && gearIds && gearIds.length && window.PETGEAR ? PETGEAR.layers(gearIds, a, opts.stg) : { b: "", f: "" };
     VR = b ? babyVariant(a.id, opts.babyN || 0) : { pose: a.o && a.o.pose, mouth: a.o && a.o.mouth };
     if (opts.mood) VR.eyes = opts.mood;
     let art;
-    if (a.rate) art = `<g transform="translate(0 22) scale(2)">${a.draw(a, b)}</g>`; else art = (K[a.kind] || K.cat)(a, b);
+    if (a.rate) art = `<g transform="translate(0 22) scale(2)">${a.draw(a, b)}</g>`; else art = (K[a.kind] || K.cat)(a, b, opts);
     if (b) {
       const quadLike = VR.used; // les mammifères ont déjà bougé la tête et le corps
       if (!quadLike) art = `<g transform="rotate(${VR.tilt * .6} 100 186)">${art}</g>`;
@@ -687,5 +764,5 @@
     const vb = g.b || g.f ? "-34 -66 268 280" : "-4 -14 208 216";
     return `<svg class="${cls}"${opts.z ? ` style="--z:${Math.round(opts.z * (g.b || g.f ? 1.28 : 1) * 100) / 100}"` : ""} viewBox="${vb}" role="img" aria-label="${esc(n)}"><ellipse cx="100" cy="190" rx="66" ry="8" fill="#3a1f4a" opacity=".13"/><g class="gearb">${g.b}</g><g class="petart">${art}</g><g class="gearf">${g.f}</g>${opts.mood === "sleep" ? `<text class="float" x="150" y="46" font-size="26" font-weight="900" fill="#8f9fe0" font-family="Nunito,sans-serif">z</text><text class="float" x="168" y="24" font-size="18" font-weight="900" fill="#b5c0f0" font-family="Nunito,sans-serif">z</text>` : ""}${b ? `<g transform="translate(164 34)">${P(heartD(0, 0, 9), "#ff8fb0", "#b5476a", 1.8)}</g>` : ""}</svg>`;
   }
-  window.ANIMALS_ART = { animals: ANIMALS, byId: Object.fromEntries(ANIMALS.map(a => [a.id, a])), renderSvg: render, DEFS, kinds: K, hash, size };
+  window.ANIMALS_ART = { h: { P, N, E, V, VE, two, M, G, clip, star, spark, scal, spiky, eye, eyes, blush, smile, nose, whisk, quad, line, lum, beakS, bubbles, rot, HEAD, VR: () => VR }, anchor: {}, animals: ANIMALS, byId: Object.fromEntries(ANIMALS.map(a => [a.id, a])), renderSvg: render, DEFS, kinds: K, hash, size };
 })();

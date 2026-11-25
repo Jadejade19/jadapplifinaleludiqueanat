@@ -232,7 +232,7 @@
   const CROP = { tete: "90 -60 220 220", cou: "140 124 120 120", epaule: "88 152 106 106", thorax: "128 160 144 144", bras: "82 206 92 92", coude: "78 246 86 86", abdomen: "134 246 132 132", avantbras: "62 288 92 92", dos: "100 140 200 200", main: "46 346 96 96", bassin: "120 296 160 160", cuisse: "115 346 112 112", genou: "122 414 92 92", jambe: "106 466 116 116", pied: "110 540 104 104" };
 
   // ---------- Dessin complet ----------
-  // o : { view:'f'|'b', worn:[accessoires], col:z=>couleur|null, tint:bool, look, hair, sel, crop, click:bool, behind, cls, label }
+  // o : { view:'f'|'b', worn:[accessoires], look, hair, sel, crop, click:bool, behind, cls, label }
   function svg(o) {
     const v = o.view || "f", L = { ...LOOK0, ...(o.look || {}) }, hs = HAIRS[o.hair] ? o.hair : "long", hc = hairCol(L.hair);
     const skin = L.skin, ln = mix(skin, "#6b2f33", .55), sh = mix(skin, "#b8503f", .28), base = L.base;
@@ -242,7 +242,7 @@
     // parties d'un accessoire selon la vue
     const pick = (a, part) => v === "b" ? (a[part + "B"] !== undefined ? a[part + "B"] : a[part]) : a[part];
     const list = part => worn.map(a => { const s = pick(a, part); return s ? { s, a } : null; }).filter(Boolean);
-    const tint = z => { const c = o.tint && o.col ? o.col(z) : null; return c ? `fill="${c}" fill-opacity="${z === "tete" ? .26 : .55}"` : `fill="#fff" fill-opacity="0"`; };
+    const tint = () => `fill="#fff" fill-opacity="0"`; // zones cliquables, invisibles
     const att = z => o.click ? ` class="bz" data-act="zone" data-z="${z}"` : "";
     const ttl = z => o.click && o.names ? `<title>${o.names[z]}</title>` : "";
     const rects = (zs, clip, x, w) => zs.map(([z, y0, y1]) => `<rect x="${x}" y="${y0}" width="${w}" height="${y1 - y0}" clip-path="url(#${clip})" ${tint(z)}${att(z)}>${ttl(z)}</rect>`).join("");
@@ -272,7 +272,7 @@
     const torso = `<path d="${TORSO}" fill="${skin}" ${S}/>${torsoDet}${worn.some(w => w.noTop) ? "" : baseTop}${worn.some(w => w.s === "robe") ? "" : baseSh}<path d="${TORSO}" fill="url(#gShade)" opacity=".8"/>` + rects(TZ, uid + "T", 120, 160) + (o.sel ? selRects(TZ, TORSO, uid + "T", 120, 160) : "");
     // --- tête ---
     const eye = x => `<g class="eye"><ellipse cx="${x}" cy="102" rx="10.5" ry="13.5" fill="#fff"/><ellipse cx="${x}" cy="103" rx="8.6" ry="11.6" fill="${L.eyes}"/><ellipse cx="${x}" cy="105" rx="4.4" ry="6.4" fill="#1d1426"/><path d="M${x - 8},108 Q${x},116 ${x + 8},108 Q${x},119 ${x - 8},108Z" fill="${lt(L.eyes, .55)}" opacity=".85"/><circle cx="${x - 3}" cy="97.5" r="3.4" fill="#fff"/><circle cx="${x + 3.6}" cy="107" r="1.7" fill="#fff" opacity=".9"/><path d="M${x - 12},98 Q${x - 9},86.5 ${x},87 Q${x + 9},86.5 ${x + 12},98" fill="none" stroke="#2b1a24" stroke-width="3.2" stroke-linecap="round"/></g>`;
-    const face = `<path d="M${145},92 C136,88 134,108 147,112Z M255,92 C264,88 266,108 253,112Z" fill="${skin}" ${S}/><path d="${FACE}" fill="${skin}" ${S}/>${o.tint || o.click ? `<path d="${FACE}" ${tint("tete")}${att("tete")}>${ttl("tete")}</path>` : ""}
+    const face = `<path d="M${145},92 C136,88 134,108 147,112Z M255,92 C264,88 266,108 253,112Z" fill="${skin}" ${S}/><path d="${FACE}" fill="${skin}" ${S}/>${o.click ? `<path d="${FACE}" ${tint("tete")}${att("tete")}>${ttl("tete")}</path>` : ""}
       <g class="acc"><ellipse cx="163" cy="124" rx="14" ry="9" fill="url(#gBlush)"/><ellipse cx="237" cy="124" rx="14" ry="9" fill="url(#gBlush)"/>
       ${eye(177)}<g transform="matrix(-1 0 0 1 400 0)">${eye(177)}</g>
       <path d="M165,80 Q176,74 188,79 M235,80 Q224,74 212,79" fill="none" stroke="${dk(L.hair, .25)}" stroke-width="3" stroke-linecap="round"/>
@@ -296,5 +296,5 @@
       <g class="${o.crop ? "" : "breathe"}">${under}${hairBack}${legFull(true)}${MIR(legFull(false))}${torso}<g class="acc">${body}</g>${armFull(true)}${MIR(armFull(false))}<g class="acc">${over}</g>${head}<g class="acc">${held}${worn.map(a => v === "f" ? a.top : a.topB).filter(Boolean).join("")}</g></g></svg>`;
   }
 
-  window.CORPS = { svg, DEFS, CROP, LOOKS, LOOK0, HAIRS, mix, dk, lt, starD, heartD, legSeg, armSeg, sleeve, handPath, footPath, at, LEG_O, LEG_I, ARM_O, ARM_I, FACE, TORSO };
+  window.CORPS = { BANGS, hairCol, svg, DEFS, CROP, LOOKS, LOOK0, HAIRS, mix, dk, lt, starD, heartD, legSeg, armSeg, sleeve, handPath, footPath, at, LEG_O, LEG_I, ARM_O, ARM_I, FACE, TORSO };
 })();
