@@ -84,6 +84,8 @@ function widgetLink() { // lien qui ouvre le widget et lui donne les QCM déjà 
 const K_SEEN = "revanat-vu-v1"; let SEEN = null, NO_RUN = false;
 const totals = () => { let ok = 0, ko = 0; for (const id in PROG) { const p = PROG[id]; ok += p.ok || 0; ko += Math.max(0, (p.n || 0) - (p.ok || 0)); } return [ok, ko]; };
 const markSeen = () => { SEEN = totals(); save(K_SEEN, SEEN); };
+// p.e : nombre d'échecs avant d'avoir eu bon (0 = eu bon directement) ; réussir du premier coup une question déjà réussie le remet à 0
+const fails = p => !p ? 0 : p.e !== undefined ? p.e : Math.max(0, (p.n || 0) - (p.ok || 0)), note = (p, good) => { const e = fails(p); p.e = good ? p.r ? 0 : e : e + 1; };
 function catchUp() {
   const [o, k] = totals(), g = Math.min(400, Math.max(0, o - SEEN[0])), b = Math.min(400, Math.max(0, k - SEEN[1])); markSeen(); if (!g && !b) return { n: 0, won: "" };
   const run = PET.run, bad = PET.bad, got = { pet: 0, rate: 0, kid: 0, kib: 0, gift: 0 }; NO_RUN = true;
@@ -105,7 +107,7 @@ function importWidget(payload) { // réponses envoyées par le widget (#/sync/<b
   for (const [id, r, t] of (data.r || [])) {
     if (!BY_ID[id] || !(t > last)) continue;
     const p = PROG[id] || { n: 0, ok: 0 };
-    if (!p.n) p.f = r ? 1 : 0; p.n++; if (r) p.ok++;
+    note(p, r); if (!p.n) p.f = r ? 1 : 0; p.n++; if (r) p.ok++;
     if (!(p.t > t)) { p.r = r ? 1 : 0; p.t = t; }
     PROG[id] = p; n++; if (r) ok++; if (t > max) max = t;
   }
@@ -121,7 +123,7 @@ function viewWidget() {
       <p class="small">Touche « Mettre à jour le widget » : il saura quels QCM tu as déjà faits ici et ne te proposera que des structures pas encore interrogées.</p>
       <div class="actions">${widgetBtn()}<a class="btn" href="#/g">Accueil</a><a class="btn" href="#/menagerie">Ménagerie</a><a class="btn" href="#/corps">Corps</a></div></section>`;
 }
-const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1, STANDALONE = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true, CNAME = "jadjeudanat-v19";
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1, STANDALONE = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true, CNAME = "jadjeudanat-v25";
 let SESSION = null;
 let MSG = "";
 
@@ -395,7 +397,7 @@ function zstat(z) { const s = stats(ZQ[z] || []); s.m = s.total ? s.ok / s.total
 const zTarget = z => { const s = zstat(z); return s.total ? Math.floor(s.ok * STEPS / s.total + 1e-9) : 0; };
 let BODY = load(K_BODY, null);
 const bodyNew = !BODY; BODY ||= {};
-BODY.got = (BODY.got || []).filter(id => ACC_BY[id]); BODY.eq ||= {}; BODY.look = { ...CORPS.LOOK0, ...(BODY.look || {}) };
+BODY.got = (BODY.got || []).filter(id => ACC_BY[id]); BODY.eq ||= {}; BODY.look = { ...CORPS.LOOK0, ...(bodyNew ? { base: pickOne(CORPS.LOOKS.base) } : {}), ...(BODY.look || {}) }; // couleur de départ au hasard pour chaque nouveau joueur
 delete BODY.tint;
 const has = a => BODY.got.includes(a.id), isEq = a => has(a) && !!BODY.eq[a.id];
 const gotIn = z => BODY.got.filter(id => ACC_BY[id].z === z).map(id => ACC_BY[id]);
@@ -496,10 +498,16 @@ for (const id in PET.care) { const c = PET.care[id]; if (c.babyId) { c.babies = 
 const petCare = id => (PET.care[id] ||= { happiness: 0, fedDays: 0, lastFedDay: null, babies: 0 });
 const MAX_BABIES = 3, FEED_FOR_BABY = 5;
 syncDaily(); save(K_PET, PET);
-// le tout premier enfant est toujours une « L », le cinquième « W » ; les autres arrivent au hasard
+// 1er enfant : une « L » ; 2e : « H » ; 5e : « W » ; puis au hasard, avec au moins deux enfants entre deux « L »
 function nextKid(pool) {
-  const has = g => PET.kids.some(id => ANIMAL_BY_ID[id].tag === g), L = pool.filter(a => a.tag === "L"), W = pool.filter(a => a.tag === "W"), rest = pool.filter(a => a.tag !== "W" && a.tag !== "J" || has("W"));
-  if (!has("L") && L.length) return pickOne(L); if (PET.kids.length >= 4 && !has("W") && W.length) return W[0];
+  const has = g => PET.kids.some(id => ANIMAL_BY_ID[id].tag === g), L = pool.filter(a => a.tag === "L"), W = pool.filter(a => a.tag === "W"), H = pool.filter(a => a.tag === "H"), near = PET.kids.slice(-2).some(id => ANIMAL_BY_ID[id].tag === "L"), rest0 = pool.filter(a => a.tag !== "W" && a.tag !== "J" || has("W")), rest1 = near ? rest0.filter(a => a.tag !== "L") : rest0, rest2 = rest1.length ? rest1 : rest0, rest3 = PET.kids.length < 10 ? rest2.filter(a => !/^rigolo-courage-/.test(a.id)) : rest2, rest = rest3.length ? rest3 : rest2;
+  if (!has("L") && L.length) return pickOne(L); if (PET.kids.length && !has("H") && H.length) return H[0]; if (PET.kids.length >= 4 && !has("W") && W.length) return W[0];
+  // parmi les 10 premiers enfants, un seul (et toujours un) futur enfant courageux, à une place au hasard
+  const isC = a => /^rigolo-courage-/.test(a.id), n = PET.kids.length, C = pool.filter(isC), hasC = PET.kids.some(id => isC(ANIMAL_BY_ID[id]));
+  if (n < 10 && !hasC && C.length && n >= 2 && (n === 9 || Math.random() < 1 / (9 - n))) return pickOne(C);
+  // parmi les 20 premiers, toujours au moins un enfant aveugle, en fauteuil, dans sa bulle, au bras bionique, triste sous son nuage, avec des boutons, un vitiligo, une prothèse, une trisomie 21 ou des appareils auditifs
+  const isS = a => !!(a.aveugle || a.fauteuil || a.bras || a.smo || a.jambe || a.t21 || a.audio || /^rigolo-triste-|^rigolo-variante-1[2-5]$/.test(a.id)), S = pool.filter(a => isS(a) && !isC(a)), hasS = PET.kids.some(id => isS(ANIMAL_BY_ID[id]));
+  if (n < 20 && !hasS && S.length && n >= 2 && n !== 4 && (n === 19 || Math.random() < 1 / (18 - n))) return pickOne(S);
   return pickOne(rest.length ? rest : pool);
 }
 function goodAnswer() { // une bonne réponse : série, croquette, cadeau, animal
@@ -604,7 +612,7 @@ function viewTab(tab) {
   const t = TABS.find(x => x.id === tab) || TABS[0], list = questionsOf(t.id), s = stats(list), len = SET.len;
   const msg = MSG; MSG = "";
   const comp = PET.companion ? ANIMAL_BY_ID[PET.companion] : null;
-  const pool = k => { const n = k === "ok" ? s.ok : k === "ko" ? s.ko : s.todo; return `<button class="pool ${k}" data-act="start" data-tab="${t.id}" data-pool="${k}" ${n ? "" : "disabled"}><span class="n">${n}</span><span class="t"><b>${POOLS[k].label}</b><span class="small">${POOLS[k].hint}</span></span><span class="go" aria-hidden="true">›</span></button>`; };
+  const pool = k => { const n = k === "ok" ? s.ok : k === "ko" ? s.ko : s.todo; return `<button class="pool ${k}" data-act="${k === "ok" ? "okPick" : "start"}" data-tab="${t.id}" data-pool="${k}" ${n ? "" : "disabled"}><span class="n">${n}</span><span class="t"><b>${POOLS[k].label}</b><span class="small">${POOLS[k].hint}</span></span><span class="go" aria-hidden="true">›</span></button>`; };
   return `${t.id === "g" ? `<section class="card hero"><a class="heroart" href="#/corps" aria-label="Mon corps d'anat">${persoSvg({ vb: "84 -60 232 290", cls: "bust" })}</a><div class="herot"><a class="lvrow" href="#/corps">${lvBlock()}</a>${dailyStrip()}</div>${comp ? `<a class="heropet" href="#/menagerie" aria-label="${esc(comp.name)}">${petSvg(comp)}</a>` : ""}</section>` : ""}
   ${resumeBanner()}${t.id === "g" ? `<div id="offcard"></div>` : ""}${msg ? `<div class="card small">${esc(msg)}</div>` : ""}
   <section class="card"><h2>${t.id === "g" ? "Toutes les structures" : t.label}</h2>
@@ -614,10 +622,12 @@ function viewTab(tab) {
   <section class="card"><label for="len"><b>Nombre de QCM par série</b></label>
     <div class="range"><input id="len" type="range" min="5" max="100" step="5" value="${Math.min(len, 100)}" data-set="len"><output id="lenOut">${len >= 100 ? "Tous" : len}</output></div>
     <div class="small">Tout à droite = toutes les questions de la case choisie.</div></section>
-  <a class="btn primary revbtn" href="#/rev/${t.id}">📖 Révision : cours${t.id === "nerf" ? " (et l'explorateur vertèbre → nerfs)" : t.id === "g" ? " de toutes les structures" : ""}</a>
-  ${t.id === "g" ? !OPENS.zonesq ? foldShut("zonesq", "S'interroger par zone du corps") : `<details class="card fold" id="zonesq" open><summary>S'interroger par zone du corps</summary><div class="zgrid">${Object.keys(ZONES).map(z => { const st = zstat(z); return `<button class="zbtn" data-act="zoneQuiz" data-z="${z}"><span class="zth">${persoSvg({ view: z === "dos" ? "b" : "f", crop: z, worn: [], cls: "thumb" })}</span><b>${esc(ZONES[z])}</b><span class="zmini"><i style="width:${st.m * 100}%"></i></span></button>`; }).join("")}</div></details>` : ""}`;
+  <a class="btn primary revbtn" href="#/rev/${t.id}">📖 Révision : cours${t.id === "nerf" ? " (et l'explorateur vertèbre → nerfs)" : t.id === "g" ? " de toutes les structures" : ""}</a>`;
 }
 
+// ---------- « Déjà eu bon » : 0 = toutes, 1 = eu bon directement, n ≥ 2 = ratées au moins n − 1 fois ----------
+let OKN = 0; const okList = tab => questionsOf(tab).filter(q => status(q) === "ok"), okMax = L => Math.min(12, L.reduce((m, q) => Math.max(m, fails(PROG[q.id])), 0)), okIn = q => { const e = fails(PROG[q.id]); return OKN === 0 || (OKN === 1 ? e === 0 : e >= OKN - 1); };
+const okTxt = n => n === 0 ? "Toutes" : n === 1 ? "Eu bon directement" : n === 2 ? "Ratées au moins 1 fois avant d'avoir bon" : `Ratées au moins ${n - 1} fois avant d'avoir bon`;
 // ---------- Jouer avec le compagnon : questions réussies, mais pas du premier coup ----------
 const replayable = () => QS.filter(q => { const p = PROG[q.id]; return p && p.r && (p.f !== undefined ? !p.f : (p.n || 0) > (p.ok || 0)); });
 function startPlay(list, label) {
@@ -750,7 +760,7 @@ function answer(i) {
   const good = S.good = q.m ? S.opts.every((o, j) => q.m.includes(o) === S.sel.includes(j)) : S.opts[i] === q.a;
   S.wiped = false; S.undo = good ? null : { p: PROG[q.id] ? { ...PROG[q.id] } : null, run: PET.run, petRun: PET.petRun, bad: PET.bad, ko: PET.koCount };
   const lv0 = level(xp()), again = !!PROG[q.id]?.r, p = PROG[q.id] || { n: 0, ok: 0 };
-  if (!p.n) p.f = good ? 1 : 0; p.n = (p.n || 0) + 1; p.ok = (p.ok || 0) + (good ? 1 : 0); p.r = good ? 1 : 0; p.t = Date.now(); PROG[q.id] = p; save(K_PROG, PROG); markSeen();
+  note(p, good); if (!p.n) p.f = good ? 1 : 0; p.n = (p.n || 0) + 1; p.ok = (p.ok || 0) + (good ? 1 : 0); p.r = good ? 1 : 0; p.t = Date.now(); PROG[q.id] = p; save(K_PROG, PROG); markSeen();
   if (good && again) { WARD.spent = (WARD.spent || 0) + 5; save(K_WARD, WARD); } // question déjà maîtrisée : 5 XP à dépenser au lieu de 10
   S.ev = good ? goodAnswer() : badAnswer(); if (S.undo) S.undo.rate = !!S.ev.rate; if (!good && S.ask) askOver(S); S.ev.fresh = syncUnlocks().map(a => a.id);
   S.say = ""; if (good && PET.run % 10 === 0) S.say = S.ev.gear10 ? `Bravo ! ${PET.run} d'affilée, et regarde ce que j'ai gagné !` : `Bravo ! ${PET.run} d'affilée !`; else if (good && PET.run % 5 === 0) S.say = "Bravo !"; else if (!good && PET.bad > 7) S.say = COURAGE[PET.bad % COURAGE.length];
@@ -766,7 +776,7 @@ function answer(i) {
 let ZOPEN = null, TAB2 = "coiffure";
 // place du compagnon : l'espace libre à droite du corps habillé (mesuré), sans jamais le recouvrir ; le décor et le cadrage ne bougent pas.
 // Chaque dessin est mis à l'échelle d'après sa taille réelle : personne n'est minuscule, ratés compris.
-const FLY = a => !a.rate && (/^(songbird|parrot|owl|raptor|bat|butterfly|pigeon)$/.test(a.kind) || a.kind === "insect" && (a.o.fly || a.o.bee) || a.o.ptero || a.o.phoenix);
+const FLY = a => !a.rate && (/^(songbird|parrot|owl|raptor|bat|butterfly|libellule|pigeon)$/.test(a.kind) || a.kind === "insect" && (a.o.fly || a.o.bee) || a.o.ptero || a.o.phoenix);
 function fitStage() {
   const st = document.querySelector(".stage.duo2"), sv = st && st.querySelector("svg.perso"), kb = st && st.querySelector(".stagepet.kidbox"), pb = st && st.querySelector(".stagepet:not(.kidbox)"); if (!sv || !kb && !pb) return;
   const m = sv.getScreenCTM(); if (!m || !m.a) return;
@@ -838,8 +848,8 @@ function giftPanel() {
     ${GIFT.REWARDS.filter(r => r.cat === TAB2 && !DAILY.got.includes(r.id)).map(r => `<button class="acc" data-act="giftBuy" data-id="${r.id}"><span class="ath">${prev(r)}</span><b>${esc(r.name)}</b><span class="st ${wallet() < r.price ? "poor" : ""}">${r.price} XP</span></button>`).join("")}</div></details>`;
 }
 // ---------- Garde-robe : boutique et essayage ----------
-let WTAB = "top";
-const OPENS = { shop: false, gifts: false, zonesq: false, gear: false, zprog: false, mfind: false, klist: false, pkshop: false }; // sections déroulées
+let WTAB = "top", WUNI = "";
+const OPENS = { shop: false, gifts: false, moi: false, gear: false, zprog: false, mfind: false, klist: false, pkshop: false }; // sections déroulées
 const itemOn = i => FABCATS.includes(i.cat) ? WARD.fab[i.cat] === i.id : WARD.eq[i.s] === i.id;
 function useItem(i, on = !itemOn(i)) { if (FABCATS.includes(i.cat)) { if (on) WARD.fab[i.cat] = i.id; else delete WARD.fab[i.cat]; save(K_WARD, WARD); } else wear(i, on); }
 function tryOn(i, o = {}) { // le personnage portant cet article
@@ -850,9 +860,12 @@ function shopPanel() {
   if (!OPENS.shop) return foldShut("shop", `Ma garde-robe <span class="small">${WARD.got.length}/${SHOP.items.length} · 💎 ${wallet().toLocaleString("fr")} XP</span>`);
   const L = level(xp()), W = wallet(), list = SHOP.items.filter(i => i.cat === WTAB), own = list.filter(i => WARD.got.includes(i.id)).length, free = FABCATS.includes(WTAB);
   const card = i => { const got = WARD.got.includes(i.id), on = got && itemOn(i), lock = !got && L < i.lvl; return `<button class="acc ${on ? "on" : ""} ${lock ? "tooLow" : ""}" data-act="wItem" data-id="${i.id}" ${lock ? "disabled" : ""}><span class="ath">${tryOn(i)}</span><b>${esc(i.name)}</b><span class="st ${!got && !lock && W < i.price ? "poor" : ""}">${on ? "✔ Porté" : got ? "Mettre" : lock ? `Niveau ${i.lvl}` : `${i.price} XP`}</span></button>`; };
+  const us = [...new Set(list.map(i => i.uni).filter(Boolean))], U = us.includes(WUNI) ? WUNI : "", shown = list.filter(i => U ? i.uni === U : !i.uni), colr = i => i.col || (i.fab && i.fab.fill);
+  const groups = U ? "" : us.map(u => { const G = list.filter(i => i.uni === u), r = G.find(i => WARD.got.includes(i.id) && itemOn(i)) || G.find(i => WARD.got.includes(i.id)) || G[3] || G[0], on = WARD.got.includes(r.id) && itemOn(r); return `<button class="acc grp ${on ? "on" : ""}" data-act="wUni" data-k="${esc(u)}"><span class="ath">${tryOn(r)}</span><b>${esc(u)}</b><span class="udots">${G.slice(0, 9).map(i => `<i style="background:${colr(i)}"></i>`).join("")}</span><span class="st">${on ? "✔ Porté · " : ""}${G.length} couleurs ›</span></button>`; }).join("");
+  const uh = U ? `<div class="unih"><button class="sm" data-act="wUni" data-k="">‹ Retour</button><b>${esc(U)}</b></div><div class="usws">${shown.map(i => { const got = WARD.got.includes(i.id); return `<button class="usw ${got ? "got" : ""} ${got && itemOn(i) ? "on" : ""}" style="background:${colr(i)}" data-act="wItem" data-id="${i.id}" aria-label="${esc(i.name)}" title="${esc(i.name)}">${got ? "✔" : ""}</button>`; }).join("")}</div>` : "";
   return `<details class="card fold" id="shop" ${OPENS.shop ? "open" : ""}><summary>Ma garde-robe <span class="small">${WARD.got.length}/${SHOP.items.length} · 💎 ${W.toLocaleString("fr")} XP</span></summary><p class="wal">💎 <b>${W.toLocaleString("fr")} XP</b> à dépenser</p><p class="small">Une bonne réponse rapporte 10 XP à dépenser (5 si la question était déjà réussie), un accessoire 25. Acheter ne fait jamais baisser ton niveau. ${WARD.got.length}/${SHOP.items.length} articles.</p>
     <div class="chips">${Object.entries(SHOP.CATS).map(([k, [l]]) => `<button data-act="wTab" data-k="${k}" class="${WTAB === k ? "on" : ""}">${l}</button>`).join("")}</div><p class="small">${own}/${list.length} dans cette catégorie</p>
-    <div class="accgrid">${free ? `<button class="acc ${WARD.fab[WTAB] ? "" : "on"}" data-act="wFree"><span class="ath">${CORPS.svg({ look: BODY.look, hair: eqv("coiffure") || "long", crop: "thorax", vb: SHOP.vb(list[0]), cls: "thumb", worn: [], ...fabOpts({ ...WARD.fab, [WTAB]: null }) })}</span><b>${WTAB[0] === "d" ? "Sans dessin" : "Couleur de base"}</b><span class="st">${WARD.fab[WTAB] ? "Mettre" : "✔ Porté"}</span></button>` : ""}${list.slice().sort((a, b) => WARD.got.includes(b.id) - WARD.got.includes(a.id) || a.lvl - b.lvl || a.price - b.price).map(card).join("")}</div></details>`;
+    ${uh}<div class="accgrid" id="wgrid">${free && !U ? `<button class="acc ${WARD.fab[WTAB] ? "" : "on"}" data-act="wFree"><span class="ath">${CORPS.svg({ look: BODY.look, hair: eqv("coiffure") || "long", crop: "thorax", vb: SHOP.vb(list[0]), cls: "thumb", worn: [], ...fabOpts({ ...WARD.fab, [WTAB]: null }) })}</span><b>${WTAB[0] === "d" ? "Sans dessin" : "Toute simple"}</b><span class="st">${WARD.fab[WTAB] ? "Mettre" : "✔ Porté"}</span></button>` : ""}${groups}${shown.slice().sort((a, b) => WARD.got.includes(b.id) - WARD.got.includes(a.id) || a.lvl - b.lvl || a.price - b.price).map(card).join("")}</div></details>`;
 }
 function buyModal(i) {
   const W = wallet(), can = W >= i.price, miss = i.price - W;
@@ -902,7 +915,7 @@ function viewCorps() {
   <section class="card"><h2>L'enfant que je garde</h2>${kidCard(kid, ask)}</section>
   ${!OPENS.zprog ? foldShut("zprog", "Progression détaillée des zones") : `<details class="card fold" id="zprog" open><summary>Progression détaillée des zones</summary><div class="zones">${Object.keys(ZONES).map(z => { const s = zstat(z), open = ZOPEN === z; return `<div class="zitem ${open ? "open" : ""}" id="z-${z}"><button class="zhead" data-act="zone" data-z="${z}" data-from="list" aria-expanded="${open}"><span class="zn">${esc(ZONES[z])}</span><span class="zbar"><i style="width:${s.m * 100}%;background:${s.m >= 1 ? "var(--gold)" : zcol(z) || "transparent"}"></i></span><span class="zp">${s.p} %</span><span class="small zc">${gotIn(z).length}/20</span><span class="chev" aria-hidden="true">▾</span></button>${open ? zonePanel(z) : ""}</div>`; }).join("")}</div></details>`}
   ${shopPanel()}${gearPanel()}${galleryPanel()}${giftPanel()}
-  <section class="card"><h2>Mon personnage</h2>${look("skin", "Peau")}${look("hair", "Cheveux")}${look("eyes", "Yeux")}${look("base", "Couleur de base")}</section>`;
+  ${!OPENS.moi ? foldShut("moi", "Mon personnage") : `<details class="card fold" id="moi" open><summary>Mon personnage</summary>${look("skin", "Peau")}${look("hair", "Cheveux")}${look("eyes", "Yeux")}</details>`}`;
 }
 
 const FACE = h => `<svg viewBox="0 0 40 40" class="face" aria-hidden="true"><path d="M6 18 4 4l12 6h8l12-6-2 14a15 15 0 1 1-28 0z" fill="#8fd6b0" stroke="#2f7a56" stroke-width="2.4" stroke-linejoin="round"/><circle cx="14" cy="22" r="2.200" fill="#1f4a38"/><circle cx="26" cy="22" r="2.200" fill="#1f4a38"/><path d="${h >= 40 ? "M15 28q5 5 10 0" : h >= 15 ? "M15 29h10" : "M15 31q5-4 10 0"}" fill="none" stroke="#1f4a38" stroke-width="2.400" stroke-linecap="round"/></svg>`;
@@ -974,7 +987,7 @@ function parkBg() { const Q = (PARC.themes.find(x => x.id === PET.park.theme) ||
   <g><ellipse cx="350" cy="560" rx="205" ry="92" fill="#c98f52"/><ellipse cx="350" cy="552" rx="186" ry="78" fill="#f7e2ac"/><path d="M290,548 l22,-40 h44 l22,40Z" fill="#f0cf86"/><path d="M300,512 h8 v-12 h8 v12 h8 v-12 h8 v12 h8 v-12 h8 v12 h14 v16 h-62Z" fill="#e5bd6a"/><path d="M440,560 l10,-34 h38 l10,34Z" fill="#f06a6a"/><path d="M446,528 q24,-34 46,0" fill="none" stroke="#c94a4a" stroke-width="6"/><rect x="228" y="548" width="54" height="11" rx="5" fill="#5fa8f0" transform="rotate(-18 228 548)"/></g>
   <g transform="translate(960 560)"><ellipse cx="40" cy="8" rx="210" ry="24" fill="#3f7a3c" opacity=".2"/><path d="M-110,0 V-190 M-30,0 V-190" stroke="#8f7bea" stroke-width="15" stroke-linecap="round"/><path d="M-110,-40 H-30 M-110,-84 H-30 M-110,-128 H-30" stroke="#ffd15c" stroke-width="10"/><rect x="-124" y="-196" width="112" height="20" rx="8" fill="#ff9fc0"/><path d="M-20,-186 C60,-176 80,-50 236,-18 L236,4 C60,-14 20,-120 -20,-150Z" fill="#ff8f5c"/><path d="M-20,-186 C60,-176 80,-50 236,-18" fill="none" stroke="#fff" stroke-width="7" opacity=".6"/><path d="M-134,-196 L-68,-254 L-2,-196Z" fill="#5fa8f0"/></g>
   <g transform="translate(250 300)"><ellipse cx="0" cy="6" rx="150" ry="20" fill="#3f7a3c" opacity=".2"/><rect x="-110" y="-120" width="220" height="124" rx="10" fill="#ffe3bf" stroke="#c98f52" stroke-width="7"/><path d="M-140,-112 L0,-214 L140,-112Z" fill="#e5646f" stroke="#a83a48" stroke-width="7" stroke-linejoin="round"/><path d="M0,-176 C-9,-188 -27,-178 -18,-163 C-11,-151 0,-146 0,-146 C0,-146 11,-151 18,-163 C27,-178 9,-188 0,-176Z" fill="#fff"/><path d="M-30,4 V-48 a30,30 0 0 1 60,0 V4Z" fill="#8f7bea" stroke="#5f4ab5" stroke-width="5"/><circle cx="16" cy="-24" r="5" fill="#ffd84d"/><rect x="-92" y="-84" width="44" height="40" rx="6" fill="#bfe6fb" stroke="#fff" stroke-width="6"/><rect x="48" y="-84" width="44" height="40" rx="6" fill="#bfe6fb" stroke="#fff" stroke-width="6"/></g>
-  <g transform="translate(1560 900)"><ellipse cx="0" cy="10" rx="190" ry="26" fill="#3f7a3c" opacity=".2"/><path d="M-150,4 L-96,-200 L-42,4 M150,4 L96,-200 L42,4 M-110,-196 H110" stroke="#c98f52" stroke-width="14" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M-50,-194 V-62 M-2,-194 V-62 M24,-194 V-62 M72,-194 V-62" stroke="#8a7a8a" stroke-width="4"/><rect x="-60" y="-66" width="68" height="15" rx="7" fill="#f06a6a"/><rect x="14" y="-66" width="68" height="15" rx="7" fill="#5fa8f0"/></g>
+  <g transform="translate(1560 900)"><ellipse cx="0" cy="10" rx="190" ry="26" fill="#3f7a3c" opacity=".2"/><path d="M-150,4 L-96,-200 L-42,4 M150,4 L96,-200 L42,4 M-110,-196 H110" stroke="#c98f52" stroke-width="14" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
   <g transform="translate(640 1000)"><ellipse rx="150" ry="52" fill="#ff9fb8"/><ellipse rx="118" ry="40" fill="#ffd9a5"/><ellipse rx="84" ry="28" fill="#a5d8f0"/><ellipse rx="46" ry="15" fill="#c9a9f2"/></g>
   ${tree(90, 330, 1.1, "#7fc46c")}${tree(520, 300, .95, "#8fd07a")}${tree(880, 280, .85, "#7fc46c")}${tree(1700, 340, 1.25, "#7fc46c")}${tree(1110, 270, .8, "#8fd07a")}${tree(110, 900, 1.2, "#8fd07a")}${tree(1740, 1100, 1.1, "#7fc46c")}${tree(1180, 1120, 1, "#8fd07a")}</svg>`;
 }
@@ -1034,9 +1047,11 @@ function parkDraw() {
   const cv = parkCv(); if (!cv || !cv.clientWidth) return; const dpr = Math.min(2, devicePixelRatio || 1), w = cv.clientWidth, h = cv.clientHeight; if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
   if (!PK.z) PK.z = parkFit(cv); parkClamp(cv); const g = cv.getContext("2d"), z = PK.z; g.setTransform(dpr, 0, 0, dpr, 0, 0); g.imageSmoothingQuality = "high"; const sky = h / 2 - PK.y * z; const Q = (PARC.themes.find(x => x.id === PET.park.theme) || PARC.themes[0]).c; g.fillStyle = Q[4]; g.fillRect(0, 0, w, h); if (sky > 0) { g.fillStyle = Q[0]; g.fillRect(0, 0, w, sky + 1); } g.translate(w / 2 - PK.x * z, h / 2 - PK.y * z); g.scale(z, z);
   if (PK.bg && PK.bg !== "attente") g.drawImage(PK.bg, 0, 0, PK.W, PK.H);
-  const L = [...PK.kids.values(), ...PET.park.items.map((i, n) => ({ it: i, n, y: PARC.byId[i.k].flat ? -1 : i.y }))].sort((a, b) => a.y - b.y); PK.hits = [];
+  for (const k of PK.kids.values()) { const a = k.act; k.s = a && a.on ? a.f(a.t, a.t / a.dur, PKH[stgOf(k.id)] * (.86 + .28 * (a.at[1] / PK.H))) : null; }
+  const L = [...PK.kids.values(), { sw: 1, y: 898 }, ...PET.park.items.map((i, n) => ({ it: i, n, y: PARC.byId[i.k].flat ? -1 : i.y }))].sort((a, b) => (a.s ? a.s.z : a.y) - (b.s ? b.s.z : b.y)); PK.hits = [];
   for (const k of L) {
-    if (k.it) { drawItem(g, k.it, k.n); continue; }
+    if (k.it) { drawItem(g, k.it, k.n); continue; } if (k.sw) { drawSwings(g); continue; }
+    if (k.s) { drawActing(g, k, z, dpr); continue; }
     const st = stgOf(k.id), sp = PK.spr.get(k.id + "|" + st), H = PKH[st] * (.86 + .28 * (k.y / PK.H)), mv = k.moving, bob = mv ? Math.abs(Math.sin(k.ph * 7)) * (st === 1 ? 2 : 5) : Math.sin(k.ph * 2) * .8;
     g.fillStyle = "rgba(40,60,30,.2)"; g.beginPath(); g.ellipse(k.x, k.y, H * .26, H * .06, 0, 0, 7); g.fill();
     if (k.id === PK.sel || k.id === PET.kid) { g.strokeStyle = k.id === PK.sel ? "#7c5cf0" : "#f5b22e"; g.lineWidth = 4; g.beginPath(); g.ellipse(k.x, k.y, H * .36, H * .1, 0, 0, 7); g.stroke(); }
@@ -1046,14 +1061,69 @@ function parkDraw() {
     if (k.id === PET.kid) { g.font = `${18 / Math.max(.7, z)}px sans-serif`; g.textAlign = "center"; g.fillText("⭐", k.x, k.y - H - 8 - bob); }
   }
 }
+// ---------- Jeux du parc : de temps en temps (2 ans et plus), un enfant utilise une installation ----------
+const ACT_MAX = 9, bez = (p, a, b, c, d) => { const q = 1 - p; return q * q * q * a + 3 * q * q * p * b + 3 * q * p * p * c + p * p * p * d; }, mixN = (a, b, p) => a + (b - a) * Math.max(0, Math.min(1, p)), SWT = [0, 0];
+const ballG = (g, x, y, r, c = "#fff") => { g.fillStyle = c; g.strokeStyle = "#4a4558"; g.lineWidth = 2; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.stroke(); };
+const swSeat = n => { const a = SWT[n], x0 = 1560 + [-26, 48][n]; return [x0 + Math.sin(a) * 130, 705 + Math.cos(a) * 130, a, x0]; };
+function drawSwings(g) { // les deux balançoires, toujours dessinées à part du décor
+  for (let n = 0; n < 2; n++) { const [x, y, a, x0] = swSeat(n), busy = [...PK.kids.values()].some(k => k.act && k.act.on && k.act.slot === "bal" + n); if (!busy) SWT[n] *= .97; g.strokeStyle = "#8a7a8a"; g.lineWidth = 4; g.beginPath(); for (const s of [-24, 24]) { g.moveTo(x0 + s, 705); g.lineTo(x + s * Math.cos(a), y - s * Math.sin(a)); } g.stroke(); g.save(); g.translate(x, y); g.rotate(-a); g.fillStyle = ["#f06a6a", "#5fa8f0"][n]; g.beginPath(); if (g.roundRect) g.roundRect(-34, -4, 68, 14, 7); else g.rect(-34, -4, 68, 14); g.fill(); g.restore(); }
+}
+// f(t, p, H) : place du dessin (x, y = pieds), r = inclinaison, sy = tassement, z = profondeur, cut = hauteur sous laquelle il est caché
+const PARC_ACTS = [
+  { slot: "tob", at: [890, 570], end: [1232, 576], dur: 7, f: (t, p, H) => p < .34 ? { x: 890, y: mixN(566, 386, p / .34), z: 566, r: Math.sin(t * 9) * .05 } : p < .46 ? { x: mixN(890, 946, (p - .34) / .12), y: 386, z: 566, sy: .86 } : p < .7 ? (q => ({ x: 960 + bez(q, -20, 60, 80, 236), y: 560 + bez(q, -186, -176, -50, -18) + 8, z: 575, r: .34 * Math.sin(q * 3.1) + .1, sy: .82 }))(((p - .46) / .24) ** 1.5) : { x: mixN(1196, 1232, (p - .7) / .1), y: 576, z: 576, sy: p < .78 ? .9 : 1, hop: p > .8 ? Math.abs(Math.sin(t * 6)) * 8 : 0 } },
+  ...[0, 1].map(n => ({ slot: "bal" + n, at: [1534 + n * 74, 925], end: [1534 + n * 74, 940], dur: 12, f: (t, p, H) => { SWT[n] = Math.sin(t * 2.5) * .55 * Math.min(1, t / 2.5) * Math.min(1, (12 - t) / 2); const [x, y, a] = swSeat(n); return { x, y: y + H * .3, r: -a, z: 899, piv: H * .3, air: 1 }; } })),
+  ...[[272, 590], [350, 604], [430, 588]].map(([x, y], n) => ({ slot: "sab" + n, at: [x, y], end: [x, y + 20], dur: 14, f: (t, p, H) => ({ x, y: y + 2, z: y, sy: .8 + Math.sin(t * 5) * .03, r: Math.sin(t * 2.5) * .06 }), post: (g, s, H, t, p) => { const k = Math.min(1, p * 1.5) * .8 + .12; g.save(); g.translate(x + 44, y + 6); g.scale(k, k); g.fillStyle = "#e5bd6a"; g.strokeStyle = "#b5873c"; g.lineWidth = 2; g.beginPath(); g.moveTo(-26, 0); g.lineTo(-22, -26); for (const a of [-22, -14, -14, -6, -6, 6, 6, 14, 14, 22]) g.lineTo(a, (a / 8 | 0) % 2 ? -26 : -32); g.lineTo(22, -26); g.lineTo(26, 0); g.closePath(); g.fill(); g.stroke(); if (p > .6) { g.strokeStyle = "#8a5a30"; g.beginPath(); g.moveTo(0, -30); g.lineTo(0, -50); g.stroke(); g.fillStyle = "#ff6f9c"; g.beginPath(); g.moveTo(0, -50); g.lineTo(16, -45); g.lineTo(0, -39); g.fill(); } g.restore(); } })),
+  { slot: "bat", at: [1330, 562], end: [1330, 566], dur: 18, f: (t, p, H) => { const e = p < .06 ? p / .06 : p > .94 ? (1 - p) / .06 : 1, a = Math.PI / 2 + p * 6.283, x = 1330 + Math.cos(a) * 130, y = 432 + Math.sin(a) * 34; return { x, y: mixN(562, y, e) + Math.sin(t * 2) * 2, z: mixN(562, y, e) + 30, r: Math.sin(t * 2) * .04, cut: e >= 1 ? y - H * .16 : null, air: 1, boat: e >= 1 ? [x, y, Math.sin(t * 2) * .04] : null, sy: .94 }; }, post: (g, s) => { if (!s.boat) return; const [x, y, r] = s.boat; g.save(); g.translate(x, y); g.rotate(r); g.fillStyle = "#e5646f"; g.strokeStyle = "#8f2a34"; g.lineWidth = 3; g.beginPath(); g.moveTo(-46, -18); g.lineTo(46, -18); g.quadraticCurveTo(38, 14, 22, 14); g.lineTo(-22, 14); g.quadraticCurveTo(-38, 14, -46, -18); g.closePath(); g.fill(); g.stroke(); g.fillStyle = "#fff"; g.fillRect(-40, -12, 80, 5); g.restore(); } },
+  ...[0, 1, 2].map(n => ({ slot: "ron" + n, at: [640 + (n - 1) * 70, 1016], end: [640 + (n - 1) * 110, 1060], dur: 9, f: (t, p, H) => { const a = t * 1.5 + n * 2.09; return { x: 640 + Math.cos(a) * 96, y: 1000 + Math.sin(a) * 32, z: 1000 + Math.sin(a) * 32, hop: Math.abs(Math.sin(t * 6)) * 12, r: Math.sin(t * 6) * .06 }; } }))
+];
+const ITEM_ACTS = { // installations achetées : i = l'élément posé, k = son échelle
+  trampo: (i, k) => ({ at: [i.x, i.y + 22], dur: 9, f: t => { const h = Math.abs(Math.sin(t * 3.3)); return { x: i.x, y: i.y - 30 * k, z: i.y + 1, hop: h * 88 * k, r: Math.sin(t * 3.3) * .1, sy: h < .15 ? .86 : 1, air: 1 }; } }),
+  gonflable: (i, k) => ({ at: [i.x, i.y + 24], dur: 10, f: t => { const h = Math.abs(Math.sin(t * 2.9)); return { x: i.x + Math.sin(t * .9) * 60 * k, y: i.y - 58 * k, z: i.y + 1, hop: h * 60 * k, r: Math.sin(t * 2) * .14, sy: h < .15 ? .85 : 1, air: 1 }; } }),
+  foot: (i, k) => ({ at: [i.x - 10, i.y + 86 * k], dur: 11, f: t => ({ x: i.x - 10 + Math.sin(t * 1.4) * 46 * k, y: i.y + 86 * k, z: i.y + 86 * k, hop: Math.abs(Math.sin(t * 7)) * 5, r: Math.sin(t * 7) * .05 }), post: (g, s, H, t) => { const q = (t % 2.2) / 2.2, u = Math.min(1, q * 1.6), a = Math.floor(t / 2.2) % 2 ? 46 : -46; ballG(g, mixN(s.x + 18, i.x + a * k, u), mixN(s.y - 8, i.y - 26 * k, u) - Math.sin(u * 3.14) * 34 * k, mixN(11, 8, u) * k); } }),
+  basket: (i, k) => ({ at: [i.x - 96 * k, i.y + 14], dur: 11, f: t => ({ x: i.x - 96 * k, y: i.y + 14, z: i.y + 14, hop: t % 2.4 < .5 ? Math.sin((t % 2.4) / .5 * 3.14) * 22 * k : 0 }), post: (g, s, H, t) => { const q = t % 2.4; if (q > .3 && q < 1.5) { const u = (q - .3) / 1.2; ballG(g, mixN(s.x + 14, i.x, u), mixN(s.y - H, i.y - 112 * k, u) - Math.sin(u * 3.14) * 60 * k, 11 * k, "#f5873c"); } else if (q >= 1.5) ballG(g, i.x, mixN(i.y - 112 * k, i.y, ((q - 1.5) / .6) ** 2), 11 * k, "#f5873c"); else ballG(g, s.x + 18, s.y - H * .55, 11 * k, "#f5873c"); } }),
+  tourniquet: (i, k) => ({ at: [i.x, i.y + 24], dur: 10, f: t => { const a = t * Math.min(3.2, .8 + t * .5); return { x: i.x + Math.cos(a) * 56 * k, y: i.y - 12 * k + Math.sin(a) * 13 * k, z: i.y + Math.sin(a) * 13, r: Math.cos(a) * .12, air: 1 }; } }),
+  ressort: (i, k) => ({ at: [i.x - 10, i.y + 22], dur: 9, f: (t, p, H) => ({ x: i.x - 12 * k + Math.sin(t * 4) * 9 * k, y: i.y - 34 * k + H * .12, z: i.y + 1, r: Math.sin(t * 4) * .2, piv: 0, cut: i.y - 40 * k, air: 1 }) }),
+  manege: (i, k) => ({ at: [i.x, i.y + 26], dur: 14, f: t => { const a = t * 1.1; return { x: i.x + Math.cos(a) * 82 * k, y: i.y - 34 * k + Math.sin(a) * 12 * k, z: i.y + (Math.sin(a) > 0 ? 2 : -2), hop: (1 + Math.sin(t * 3)) * 9 * k, air: 1, sy: .94 }; } }),
+  train: (i, k) => ({ at: [i.x, i.y + 24], dur: 11, f: (t, p, H) => ({ x: i.x + Math.sin(t * 5) * 1.5, y: i.y - 26 * k + H * .1, z: i.y + 1, cut: i.y - 50 * k, hop: Math.abs(Math.sin(t * 6)) * 3, air: 1 }) }),
+  balles: (i, k) => ({ at: [i.x, i.y + 24], dur: 11, f: (t, p, H) => ({ x: i.x + Math.sin(t * 1.3) * 46 * k, y: i.y - 8 * k + H * .1, z: i.y + 1, cut: i.y - 36 * k, hop: Math.abs(Math.sin(t * 4)) * 9, air: 1 }), post: (g, s, H, t) => { ["#ff6f8f", "#ffd15c", "#8fe0f5"].forEach((c, n) => { const u = (t * .9 + n * .33) % 1; ballG(g, s.x + (n - 1) * 46 * k, i.y - 40 * k - Math.sin(u * 3.14) * 56 * k, 10 * k, c); }); } }),
+  marelle: (i, k) => ({ at: [i.x, i.y + 10], dur: 9, f: t => { const L = [[0, -6], [0, -32], [-18, -58], [18, -58], [0, -84], [-18, -110], [18, -110], [0, -136]], q = t * 1.7, n = Math.floor(q), u = q - n, w = m => { const c = m % 14; return L[c < 8 ? c : 14 - c]; }, a = w(n), b = w(n + 1); return { x: i.x + mixN(a[0], b[0], u) * k, y: i.y + mixN(a[1], b[1], u) * k, z: i.y + mixN(a[1], b[1], u) * k + 200, hop: Math.sin(u * 3.14) * 16 * k }; } }),
+  arceau: (i, k) => ({ at: [i.x, i.y + 22], dur: 9, f: (t, p, H) => ({ x: i.x + Math.sin(t * .8) * 40 * k, y: i.y - 96 * k + H * .95, z: i.y + 1, r: Math.sin(t * 3) * .16, piv: H * .95, air: 1 }) }),
+  scene: (i, k) => ({ at: [i.x, i.y + 22], dur: 12, f: t => ({ x: i.x + Math.sin(t * 1.6) * 42 * k, y: i.y - 24 * k, z: i.y + 1, hop: Math.abs(Math.sin(t * 5)) * 12, r: Math.sin(t * 5) * .12, air: 1 }), post: (g, s, H, t) => { g.font = `${22 * k}px sans-serif`; g.textAlign = "center"; ["♪", "♫"].forEach((c, n) => { const u = (t * .5 + n * .5) % 1; g.globalAlpha = 1 - u; g.fillStyle = ["#8f5fd8", "#ff6f9c"][n]; g.fillText(c, s.x + (n ? 34 : -34) * k + Math.sin(u * 6) * 6, s.y - H * .8 - u * 50 * k); g.globalAlpha = 1; }); } }),
+  bulles: (i, k) => ({ at: [i.x + 64 * k, i.y + 12], dur: 9, f: t => ({ x: i.x + 64 * k, y: i.y + 12, z: i.y + 12, hop: Math.abs(Math.sin(t * 4)) * 18 }), post: (g, s, H, t) => { for (let n = 0; n < 5; n++) { const u = (t * .35 + n * .2) % 1; g.strokeStyle = "#8fc9ec"; g.fillStyle = "rgba(229,248,255,.5)"; g.lineWidth = 2; g.globalAlpha = 1 - u * .8; g.beginPath(); g.arc(i.x + Math.sin(n * 2.1 + u * 5) * 50 * k, i.y - (60 + u * 110) * k, (6 + n * 2) * k, 0, 7); g.fill(); g.stroke(); g.globalAlpha = 1; } } }),
+  picnic: (i, k) => ({ at: [i.x + 10, i.y - 2], dur: 12, f: t => ({ x: i.x + 10, y: i.y - 2, z: i.y + 1, sy: .8 + Math.sin(t * 3) * .02, r: Math.sin(t * 1.6) * .05 }) }),
+  banc: (i, k) => ({ at: [i.x, i.y + 14], dur: 11, f: (t, p, H) => ({ x: i.x, y: i.y - 2, z: i.y + 1, sy: .86, r: Math.sin(t * 1.5) * .04 }) }),
+  peinture: (i, k) => ({ at: [i.x - 52 * k, i.y + 12], dur: 10, f: t => ({ x: i.x - 52 * k + Math.sin(t * 3) * 5, y: i.y + 12, z: i.y + 12, r: Math.sin(t * 3) * .07 }) }),
+  telescope: (i, k) => ({ at: [i.x - 44 * k, i.y + 8], dur: 8, f: t => ({ x: i.x - 44 * k, y: i.y + 8, z: i.y + 8, r: -.07 + Math.sin(t) * .02 }) })
+};
+function actFor(i) { const mk = ITEM_ACTS[i.k]; return mk ? { slot: i, item: i, ...mk(i, itemK(i.y)) } : null; }
+function actList(k) { // ce qui est libre et pas trop loin
+  const busy = new Set([...PK.kids.values()].filter(q => q !== k && q.act).map(q => q.act.slot)); if (busy.size >= ACT_MAX) return [];
+  return [...(PK.edit ? [] : PET.park.items.map(actFor).filter(Boolean).flatMap(a => [a, a])), ...PARC_ACTS].filter(a => !busy.has(a.slot) && Math.hypot(a.at[0] - k.x, a.at[1] - k.y) < 760);
+}
+function actStart(k, only) {
+  const L = only || actList(k); if (!L.length) return false; const a = pickOne(L), [x, y] = a.at; if (inPond(x, y)) return false;
+  for (let i = 1; i <= 10; i++) if (inPond(k.x + (x - k.x) * i / 10, k.y + (y - k.y) * i / 10)) return false;
+  k.act = { ...a, on: false, t: 0 }; k.tx = x; k.ty = y; return true;
+}
+function actStep(k, dt) { const a = k.act; a.t += dt; k.moving = false; if (a.t < a.dur && !(a.item && (PK.edit || !PET.park.items.includes(a.item)))) return; const [x, y] = a.end || a.at; k.x = k.tx = x; k.y = k.ty = y; k.act = null; k.wait = 2 + Math.random() * 5; }
+function drawActing(g, k, z, dpr) {
+  const st = stgOf(k.id), sp = PK.spr.get(k.id + "|" + st), a = k.act, s = k.s, H = PKH[st] * (.86 + .28 * (a.at[1] / PK.H)), hop = s.hop || 0;
+  if (!s.air) { g.fillStyle = "rgba(40,60,30,.2)"; g.beginPath(); g.ellipse(s.x, s.y, H * .26, H * .06, 0, 0, 7); g.fill(); }
+  if (k.id === PK.sel || k.id === PET.kid) { g.strokeStyle = k.id === PK.sel ? "#7c5cf0" : "#f5b22e"; g.lineWidth = 4; g.beginPath(); g.ellipse(s.x, s.y - hop, H * .36, H * .1, 0, 0, 7); g.stroke(); }
+  if (sp) { g.save(); if (s.cut) { g.beginPath(); g.rect(s.x - 400, s.y - 900, 800, 900 - (s.y - s.cut)); g.clip(); } const pv = s.piv || 0, sw = sp.w * H, sh = sp.h * H, px = sh * z * dpr, im = sp.mip[px < SPR_H * .3 ? 2 : px < SPR_H * .62 ? 1 : 0]; g.translate(s.x, s.y - hop - pv); g.rotate(s.r || 0); g.translate(0, pv); g.scale(1, s.sy || 1); g.drawImage(im, -sw * sp.cx, -sh * sp.by, sw, sh); g.restore(); }
+  if (a.post) a.post(g, s, H, a.t, a.t / a.dur);
+  PK.hits.push([k.id, s.x, s.y - hop, H]);
+  if (k.id === PK.sel || z > 1.15) { const n = shortName(ANIMAL_BY_ID[k.id]), fs = Math.max(11, 13 / z * Math.min(z, 1.2)); g.font = `800 ${fs}px Nunito, sans-serif`; const tw = g.measureText(n).width + fs; g.fillStyle = k.id === PK.sel ? "#7c5cf0" : "rgba(255,255,255,.9)"; g.beginPath(); if (g.roundRect) g.roundRect(s.x - tw / 2, s.y + 6, tw, fs * 1.55, fs); else g.rect(s.x - tw / 2, s.y + 6, tw, fs * 1.55); g.fill(); g.fillStyle = k.id === PK.sel ? "#fff" : "#3a2a55"; g.textAlign = "center"; g.fillText(n, s.x, s.y + 6 + fs * 1.13); }
+  if (k.id === PET.kid) { g.font = `${18 / Math.max(.7, z)}px sans-serif`; g.textAlign = "center"; g.fillText("⭐", s.x, s.y - H - 8 - hop); }
+}
 const shortName = a => a.name;
 let parkT = 0; const CALM = matchMedia("(prefers-reduced-motion: reduce)");
 function parkLoop(ts) {
   const cv = parkCv(); if (!cv) { PK.raf = 0; return; } PK.raf = requestAnimationFrame(parkLoop); if (document.hidden || ts - parkT < 33) return; const dt = Math.min(.1, (ts - parkT) / 1000); parkT = ts; const bx = cv.getBoundingClientRect(); if (bx.bottom < 0 || bx.top > innerHeight) return;
   if (!CALM.matches) for (const k of PK.kids.values()) {
-    const st = stgOf(k.id), v = [0, 20, 34, 52, 46, 48][st]; k.ph += dt; if (k.id === PK.sel || !v) { k.moving = false; continue; }
+    const st = stgOf(k.id), v = [0, 20, 34, 52, 46, 48][st]; k.ph += dt; if (k.act && k.act.on) { actStep(k, dt); continue; } if (k.id === PK.sel || !v) { k.moving = false; continue; }
     const dx = k.tx - k.x, dy = k.ty - k.y, d = Math.hypot(dx, dy);
-    if (d < 4) { k.moving = false; k.wait -= dt; if (k.wait <= 0) { k.wait = 1 + Math.random() * 6; const near = PET.park.items.length && Math.random() < .35 ? PET.park.items.filter(i => Math.hypot(i.x - k.x, i.y - k.y) < 520) : [], go = near.length ? pickOne(near) : null, a = Math.random() * 6.283, q = 50 + Math.random() * 190; if (go) { k.tx = Math.max(60, Math.min(1740, go.x + (Math.random() - .5) * 150)); k.ty = Math.max(330, Math.min(1120, go.y + 8 + Math.random() * 34)); k.wait = 5 + Math.random() * 7; } else k.tx = Math.max(60, Math.min(1740, k.x + Math.cos(a) * q)); if (!go) k.ty = Math.max(330, Math.min(1120, k.y + Math.sin(a) * q * .6)); for (let i = 1; i <= 8; i++) if (inPond(k.x + (k.tx - k.x) * i / 8, k.y + (k.ty - k.y) * i / 8)) { k.tx = k.x; k.ty = k.y; break; } } }
+    if (d < 4) { k.moving = false; if (k.act) { k.act.on = true; k.act.t = 0; continue; } k.wait -= dt; if (k.wait <= 0 && st > 1 && Math.random() < .3 && actStart(k)) continue; if (k.wait <= 0) { k.wait = 1 + Math.random() * 6; const near = PET.park.items.length && Math.random() < .35 ? PET.park.items.filter(i => Math.hypot(i.x - k.x, i.y - k.y) < 520) : [], go = near.length ? pickOne(near) : null, a = Math.random() * 6.283, q = 50 + Math.random() * 190; if (go) { k.tx = Math.max(60, Math.min(1740, go.x + (Math.random() - .5) * 150)); k.ty = Math.max(330, Math.min(1120, go.y + 8 + Math.random() * 34)); k.wait = 5 + Math.random() * 7; } else k.tx = Math.max(60, Math.min(1740, k.x + Math.cos(a) * q)); if (!go) k.ty = Math.max(330, Math.min(1120, k.y + Math.sin(a) * q * .6)); for (let i = 1; i <= 8; i++) if (inPond(k.x + (k.tx - k.x) * i / 8, k.y + (k.ty - k.y) * i / 8)) { k.tx = k.x; k.ty = k.y; break; } } }
     else { k.moving = true; k.dir = dx > 0 ? 1 : -1; k.x += dx / d * v * dt; k.y += dy / d * v * dt; }
   }
   parkDraw();
@@ -1143,7 +1213,8 @@ const ACT = {
   equip: el => { const a = ACC_BY[el.dataset.id]; if (a && has(a)) { wear(a, !isEq(a)); save(K_BODY, BODY); render(); } },
   off: () => { BODY.eq = {}; WARD.eq = {}; save(K_WARD, WARD); save(K_BODY, BODY); render(); },
   rnd: () => { BODY.eq = {}; WARD.eq = {}; const seen = new Set(), pool = [...BODY.got.map(id => ACC_BY[id]), ...WARD.got.map(id => SHOP.byId[id]).filter(i => i.s)]; for (const a of shuffle(pool)) if (!clash(a.s).some(s => seen.has(s)) && Math.random() < .62) { seen.add(a.s); wear(a, true); } save(K_BODY, BODY); render(); },
-  wTab: el => { WTAB = el.dataset.k; render(); },
+  wTab: el => { WTAB = el.dataset.k; WUNI = ""; render(); },
+  wUni: el => { WUNI = el.dataset.k; render(); document.getElementById("wgrid")?.scrollIntoView({ block: "center" }); },
   wItem: el => { const i = SHOP.byId[el.dataset.id]; if (!i) return; if (!WARD.got.includes(i.id)) return buyModal(i); useItem(i); render(); },
   wFree: () => { delete WARD.fab[WTAB]; save(K_WARD, WARD); render(); },
   wBuy: el => { const i = SHOP.byId[el.dataset.id]; if (!i || WARD.got.includes(i.id) || wallet() < i.price || level(xp()) < i.lvl) return; WARD.spent = (WARD.spent || 0) + i.price; WARD.got.push(i.id); useItem(i, true); document.querySelector(".modal")?.remove(); render(); toast(`${esc(i.name)} : c'est à toi !`, "ok"); },
@@ -1194,6 +1265,9 @@ const ACT = {
   zoneQuiz: el => { const z = el.dataset.z; let l = (ZQ[z] || []).filter(q => status(q) !== "ok"); if (!l.length) l = ZQ[z] || []; zoneStart(z, l); },
   zonePool: el => zoneStart(el.dataset.z, (ZQ[el.dataset.z] || []).filter(q => status(q) === el.dataset.pool)),
   start: el => startSession(el.dataset.tab, el.dataset.pool),
+  okPick: el => { const L = okList(el.dataset.tab); OKN = 0; if (!L.length) return toast("Aucune question ici pour le moment."); const m = okMax(L);
+    modal(`<h2>Déjà eu bon</h2><p class="small">Choisis les questions selon le nombre d'essais ratés avant d'avoir eu bon.</p><div class="range"><input id="okn" type="range" min="0" max="${m + 1}" step="1" value="0" data-tab="${esc(el.dataset.tab)}" aria-label="Nombre d'essais ratés"></div><p class="big" id="okTxt">${okTxt(0)}</p><p class="small" id="okN">${plural(L.length, "question")}</p><div class="actions center"><button class="primary" data-act="okGo" data-tab="${esc(el.dataset.tab)}">Lancer</button><button data-act="closeM">Fermer</button></div><p class="small">Si tu réussis du premier coup cette fois, la question passe dans « Eu bon directement ».</p>`); },
+  okGo: el => { const L = okList(el.dataset.tab).filter(okIn); if (!L.length) return; document.querySelector(".modal")?.remove(); let l = shuffle(L.map(q => q.id)); if (SET.len < 100) l = l.slice(0, SET.len); startSession(el.dataset.tab, "ok", l, OKN ? `Déjà eu bon : ${okTxt(OKN).toLowerCase()}` : "Déjà eu bon"); },
   reg: el => { SET.reg = el.dataset.reg; save(K_SET, SET); render(); },
   answer: el => answer(Number(el.dataset.i)),
   toggle: el => { const S = SESSION, i = Number(el.dataset.i); if (!S || S.answered != null) return; S.sel = S.sel.includes(i) ? S.sel.filter(x => x !== i) : [...S.sel, i]; saveSession(); render(); },
@@ -1241,6 +1315,7 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("input", e => {
   if (e.target.dataset.set === "len") { SET.len = Number(e.target.value); save(K_SET, SET); const o = document.getElementById("lenOut"); if (o) o.textContent = SET.len >= 100 ? "Tous" : SET.len; }
+  else if (e.target.id === "okn") { OKN = Number(e.target.value); const n = okList(e.target.dataset.tab).filter(okIn).length; document.getElementById("okTxt").textContent = okTxt(OKN); document.getElementById("okN").textContent = plural(n, "question"); const b = document.querySelector("[data-act=okGo]"); if (b) b.disabled = !n; }
   else if (e.target.id === "search") {
     const v = e.target.value, pos = e.target.selectionStart, tb = e.target.dataset.tab;
     history.replaceState(null, "", (tb ? "#/rev/" + tb + "/" : "#/fiches/") + encodeURIComponent(v)); LAST = location.hash;

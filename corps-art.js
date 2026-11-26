@@ -35,6 +35,8 @@
     `<radialGradient id="gDeep"><stop offset="0" stop-color="#1a0a20" stop-opacity=".42"/><stop offset=".6" stop-color="#1a0a20" stop-opacity=".26"/><stop offset="1" stop-color="#1a0a20" stop-opacity="0"/></radialGradient>` +
     grad("gHairS", [[0, "#fff", .2], [.3, "#fff", 0], [.65, "#1a0a20", 0], [1, "#1a0a20", .2]], V) +
     grad("gShade", [[0, "#000", 0], [1, "#3a1030", .16]], HZ) +
+    grad("gArm", [[0, "#5a1f3a", .16], [.34, "#5a1f3a", 0], [1, "#fff", 0]], HZ) +
+    grad("gTorso", [[0, "#3a1030", 0], [.4, "#3a1030", 0], [.8, "#3a1030", .1], [1, "#3a1030", .13]], V) +
     grad("gLimb", [[0, "#5a1f3a", .16], [.3, "#5a1f3a", 0], [.75, "#fff", .1], [1, "#fff", 0]], HZ) +
     `<radialGradient id="gGlow"><stop offset="0" stop-color="#fff6c9" stop-opacity=".95"/><stop offset="1" stop-color="#ffe27a" stop-opacity="0"/></radialGradient>` +
     `<radialGradient id="gBlush"><stop offset="0" stop-color="#ff6f8f" stop-opacity=".5"/><stop offset="1" stop-color="#ff6f8f" stop-opacity="0"/></radialGradient>` +
@@ -86,9 +88,12 @@
   const FOOT = p => `C-14,236 ${-25 - p},244 ${-27 - p},256 C${-28 - p},${264 + p} -20,${267 + p} -12,${267 + p} L8,${267 + p} C${17 + p},${267 + p} ${17 + p},256 ${14 + p},248 C12,240 11,234 `;
   const HAND = `C11,178 16,182 19,190 C22,198 17,203 12.5,197 C14,208 12,218 8,224 C4,230 -5,230 -9,223 C-13,212 -13,190 `;
   const LEG = `M${side(LEG_O, -8, 228, 0)} ${FOOT(0)}${f1(at(LEG_I, 228))},228 L${side(LEG_I, 228, -8, 0)}Z`;
-  const ARM = `M${side(ARM_O, 2, 172, 0)} L-9.5,172 C-13,188 -13,212 -9,223 C-5,230 4,230 8,224 C12,218 14,208 12.5,197 C17,203 22,198 19,190 C16,182 11,178 9,172 L${side(ARM_I, 172, 2, 0)} C19,-12 14,-21 2,-22 C-12,-22 -21,-12 -20,2Z`;
+  const ARM = `M${side(ARM_O, 2, 172, 0)} L-9.5,172 C-13,188 -13,212 -9,223 C-5,230 4,230 8,224 C12,218 14,208 12.5,197 C17,203 22,198 19,190 C16,182 11,178 9,172 L${side(ARM_I, 172, 2, 0)} C19,-8 18,-18 14,-25 C5,-23.5 -20,-21 -20,2Z`, ARM_L = `M14,-25 C5,-23.5 -20,-21 -20,2 L${side(ARM_O, 2, 172, 0)} L-9.5,172 C-13,188 -13,212 -9,223 C-5,230 4,230 8,224 C12,218 14,208 12.5,197 C17,203 22,198 19,190 C16,182 11,178 9,172 L${side(ARM_I, 172, 26, 0)}`;
   const CAP = p => `C${19 + p},-12 ${14 + p},${-21 - p} 2,${-22 - p} C-12,${-22 - p} ${-21 - p},-12 ${-20 - p},2`;
-  const sleeve = (y1, p = 2.5, c1 = 4) => `M${side(ARM_O, 2, y1, -p)} Q0,${y1 + c1 * 2} ${side(ARM_I, y1, 2, p)} ${CAP(p)}Z`;
+  // épaule sans couture : le contour s'arrête à l'aisselle, rien ne sépare le bras du buste
+  const PIT = 26, SLV = new Map(), CAPO = p => `M${14 + p * .4},${-25 - p * .6} C5,${-23.5 - p} ${-20 - p},${-21 - p * .7} ${-20 - p},2`;
+  const sleeve = (y1, p = 2.5, c1 = 4) => { const d = `M${side(ARM_O, 2, y1, -p)} Q0,${y1 + c1 * 2} ${side(ARM_I, y1, 2, p)} C${19 + p},-8 ${18 + p},-18 ${14 + p * .4},${-25 - p * .6} ${CAPO(p).slice(CAPO(p).indexOf("C"))}Z`; SLV.set(d, `${CAPO(p)} L${side(ARM_O, 2, y1, -p)} Q0,${y1 + c1 * 2} ` + (y1 > PIT ? side(ARM_I, y1, PIT, p) : `${f1(at(ARM_I, y1) + p)},${y1}`)); return d; };
+  const noSeam = s => s.replace(/<path d="([^"]+)"([^>]*)\/>/g, (m, d, a) => { const o = SLV.get(d); if (!o) return m; if (a.includes("gLimb")) return m.replace("gLimb", "gArm"); const k = a.match(/ stroke="[^"]*"| stroke-width="[^"]*"/g); return k ? `<path d="${d}"${a.replace(/ stroke[a-z-]*="[^"]*"/g, "")}/><path d="${o}" fill="none"${k.join("")} stroke-linejoin="round" stroke-linecap="round"/>` : m; });
   const handPath = p => `M${-9.5 - p},168 C${-13 - p},188 ${-13 - p},212 ${-9 - p},${223 + p} C-5,${231 + p} 4,${231 + p} ${8 + p},${224 + p} C${12 + p},218 ${14 + p},208 ${12.5 + p},${198 + p} C17,${203 + p} ${22 + p},${198 + p} ${19 + p},190 C${16 + p},182 11,178 ${9 + p},168 Q0,171 ${-9.5 - p},168Z`;
   const footPath = (y0, p = 1.6) => `M${side(LEG_O, y0, 228, -p)} ${FOOT(p)}${f1(at(LEG_I, 228) + p)},228 L${side(LEG_I, 228, y0, p)} Q0,${y0 + 5} ${f1(at(LEG_O, y0) - p)},${y0}Z`;
 
@@ -257,11 +262,12 @@
     // --- bras ---
     const elbow = v === "f" ? `<path d="M-6,92 Q0,96 7,91" fill="none" stroke="${sh}" stroke-width="1.8" stroke-linecap="round"/>` : `<path d="M-6,88 Q0,82 6,88 M-5,98 Q0,101 5,98" fill="none" stroke="${sh}" stroke-width="1.8" stroke-linecap="round"/>`;
     const fingers = `<path d="M-5,228 Q-6,218 -5,210 M1,229 Q1,218 1,209 M6,226 Q7,217 7,209" fill="none" stroke="${ln}" stroke-width="1.2" stroke-linecap="round" opacity=".6"/>`;
-    const armArt = `<path d="${ARM}" fill="${skin}" ${S}/>${elbow}${fingers}<path d="${ARM}" fill="url(#gLimb)"/>`;
-    const armFull = (left) => armG(armArt + rects(ARM_Z, uid + "A", -60, 120) + `<g class="acc">${list("arm").filter(x => !x.a.single || left).map(x => x.s).join("")}</g>` + (o.sel ? selRects(ARM_Z, ARM, uid + "A", -60, 120) : ""));
+    const armArt = `<path d="${ARM}" fill="${skin}"/><path d="${ARM}" fill="url(#gArm)"/><path d="${ARM_L}" fill="none" ${S} stroke-linecap="round"/>${elbow}${fingers}`;
+    const armBack = armG(armArt), armLow = `<g clip-path="url(#${uid}P)">${armArt}</g>`; // sous les vêtements à l'épaule, devant eux plus bas
+    const armFull = (left) => armG(armLow + rects(ARM_Z, uid + "A", -60, 120) + `<g class="acc">${list("arm").filter(x => !x.a.single || left).map(x => noSeam(x.s)).join("")}</g>` + (o.sel ? selRects(ARM_Z, ARM, uid + "A", -60, 120) : ""));
     // --- tronc ---
-    const topF = `M167,180 L177,178 C179,198 190,206 200,206 C210,206 221,198 223,178 L233,180 C233,198 240,212 250,220 C250,238 248,250 246,266 Q200,276 154,266 C152,250 150,238 150,220 C160,212 167,198 167,180Z`;
-    const topB = `M167,180 L177,178 C180,190 190,196 200,196 C210,196 220,190 223,178 L233,180 C233,200 240,214 250,222 C250,238 248,250 246,266 Q200,276 154,266 C152,250 150,238 150,222 C160,214 167,200 167,180Z`;
+    const topF = `M167,180 L177,178 C179,198 190,206 200,206 C210,206 221,198 223,178 L233,180 C234,198 244,212 256,222 C252,238 248,250 246,266 Q200,276 154,266 C152,250 148,238 144,222 C156,212 166,198 167,180Z`;
+    const topB = `M167,180 L177,178 C180,190 190,196 200,196 C210,196 220,190 223,178 L233,180 C234,200 244,214 256,224 C252,238 248,250 246,266 Q200,276 154,266 C152,250 148,238 144,224 C156,214 166,200 167,180Z`;
     const shorts = `M150,318 Q200,330 250,318 C256,338 260,350 259,366 C240,382 216,382 200,390 C184,382 160,382 141,366 C140,350 144,338 150,318Z`;
     const torsoDet = v === "f"
       ? `<path d="M178,186 Q188,192 196,190 M222,186 Q212,192 204,190" fill="none" stroke="${sh}" stroke-width="2" stroke-linecap="round"/><path d="M200,282 V296" stroke="${sh}" stroke-width="1.6" stroke-linecap="round" opacity=".8"/><ellipse cx="200" cy="306" rx="2.2" ry="3.4" fill="${mix(skin, "#8a3f35", .5)}"/><path d="M185,150 Q200,166 215,150 L215,140 L185,140Z" fill="${sh}" opacity=".75"/>`
@@ -269,7 +275,7 @@
     const baseTop = `<path d="${v === "f" ? topF : topB}" fill="${tf.fill}" stroke="${tf.st}" stroke-width="1.7" stroke-linejoin="round"/>` + (v === "f" ? `<path d="M156,258 Q200,268 244,258" fill="none" stroke="#fff" stroke-width="3" opacity=".45"/>` + (o.topPrint ? `<g transform="translate(200 236)">${o.topPrint}</g>` : "") : "");
     const baseSh = `<path d="${shorts}" fill="${sf.fill}"/><path d="M141,366 C140,350 144,338 150,318 Q200,330 250,318 C256,338 260,350 259,366 M194,386 L200,390 L206,386" fill="none" stroke="${sf.st}" stroke-width="1.7" stroke-linejoin="round"/><path d="M151,325 Q200,337 249,325" fill="none" stroke="#fff" stroke-width="3" opacity=".45"/>` + (v === "f" ? `<path d="M200,336 V388" stroke="${sf.st}" stroke-width="1.2" opacity=".5"/>` + (o.shortPrint ? `<g transform="translate(168 353) scale(.72)">${o.shortPrint}</g>` : "") : `<path d="M200,332 V388 M158,374 Q180,386 198,376 M242,374 Q220,386 202,376" stroke="${sf.st}" stroke-width="1.3" fill="none" opacity=".6"/>` + (o.shortPrint ? `<g transform="translate(228 350) scale(.72)">${o.shortPrint}</g>` : ""));
     const TZ = v === "f" ? TOR_F : TOR_B;
-    const torso = `<path d="${TORSO}" fill="${skin}" ${S}/>${torsoDet}${worn.some(w => w.noTop) ? "" : baseTop}${worn.some(w => w.s === "robe") ? "" : baseSh}<path d="${TORSO}" fill="url(#gShade)" opacity=".8"/>` + rects(TZ, uid + "T", 120, 160) + (o.sel ? selRects(TZ, TORSO, uid + "T", 120, 160) : "");
+    const torso = `<path d="${TORSO}" fill="${skin}" ${S}/>${torsoDet}<path d="${TORSO}" fill="url(#gTorso)"/>${armBack}${MIR(armBack)}${worn.some(w => w.noTop || w.s === "haut" || w.s === "robe") ? "" : baseTop}${worn.some(w => w.s === "robe") ? "" : baseSh}` + rects(TZ, uid + "T", 120, 160) + (o.sel ? selRects(TZ, TORSO, uid + "T", 120, 160) : "");
     // --- tête ---
     const eye = x => `<g class="eye"><ellipse cx="${x}" cy="102" rx="10.5" ry="13.5" fill="#fff"/><ellipse cx="${x}" cy="103" rx="8.6" ry="11.6" fill="${L.eyes}"/><ellipse cx="${x}" cy="105" rx="4.4" ry="6.4" fill="#1d1426"/><path d="M${x - 8},108 Q${x},116 ${x + 8},108 Q${x},119 ${x - 8},108Z" fill="${lt(L.eyes, .55)}" opacity=".85"/><circle cx="${x - 3}" cy="97.5" r="3.4" fill="#fff"/><circle cx="${x + 3.6}" cy="107" r="1.7" fill="#fff" opacity=".9"/><path d="M${x - 12},98 Q${x - 9},86.5 ${x},87 Q${x + 9},86.5 ${x + 12},98" fill="none" stroke="#2b1a24" stroke-width="3.2" stroke-linecap="round"/></g>`;
     const face = `<path d="M${145},92 C136,88 134,108 147,112Z M255,92 C264,88 266,108 253,112Z" fill="${skin}" ${S}/><path d="${FACE}" fill="${skin}" ${S}/>${o.click ? `<path d="${FACE}" ${tint("tete")}${att("tete")}>${ttl("tete")}</path>` : ""}
@@ -288,7 +294,7 @@
     const over = worn.map(a => v === "f" ? a.over : a.overB).filter(Boolean).join("");
     const held = list("held").map(x => armG(x.s)).join("");
     const clipS = (id, d, zs, x, w) => `<clipPath id="${id}"><path d="${d}"/></clipPath>` + (o.sel ? zs.filter(z => z[0] === o.sel).map(([z, a, b]) => `<clipPath id="${id}-${z}"><rect x="${x}" y="${a}" width="${w}" height="${b - a}"/></clipPath>`).join("") : "");
-    const clips = `<defs>${clipS(uid + "L", LEG, LEG_Z, -60, 120)}${clipS(uid + "A", ARM, ARM_Z, -60, 120)}${clipS(uid + "T", TORSO, TZ, 120, 160)}</defs>`;
+    const clips = `<defs>${clipS(uid + "L", LEG, LEG_Z, -60, 120)}${clipS(uid + "A", ARM, ARM_Z, -60, 120)}${clipS(uid + "T", TORSO, TZ, 120, 160)}<clipPath id="${uid}P"><rect x="-60" y="16" width="120" height="260"/></clipPath></defs>`;
     const vb = o.vb || (o.crop ? CROP[o.crop] : "0 -62 400 716");
     // en vue de dos, l'ordre change : les cheveux et le sac passent au-dessus du tronc
     return `<svg class="${o.cls || "perso"}" viewBox="${vb}" role="img" aria-label="${o.label || "Mon personnage"}">${clips}
