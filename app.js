@@ -482,6 +482,7 @@ PET.got = [...new Set(PET.got || [])].filter(id => ART.byId[id] && !KID_IDS.has(
 PET.koCount ||= 0; PET.run ||= 0; PET.bad ||= 0; PET.targetGood = PER_PET; if (!PET.kidT || PET.kidT > 20) PET.kidT = kidTarget(); PET.goodSinceKid ||= 0; PET.good50 ||= 0;
 if (KID_IDS.has(PET.companion)) { PET.kid ||= PET.companion; PET.companion = PET.got[PET.got.length - 1] || null; } if (!PET.kids.includes(PET.kid)) PET.kid = null;
 if (PET.companion && !PET.got.includes(PET.companion) && !PET.rates.includes(PET.companion)) PET.companion = null;
+if (PET.flyer && !PET.got.includes(PET.flyer)) PET.flyer = null;
 // accessoires du compagnon : un par niveau, un toutes les 10 bonnes réponses d'affilée
 PET.gear = { got: [], eq: {}, keq: {}, lv: 0, ...(PET.gear || {}) }; PET.gear.got = PET.gear.got.filter(id => GEAR.byId[id]);
 for (const id of OLD_GOT) if (GEAR.byId[id] && !PET.gear.got.includes(id)) PET.gear.got.push(id);
@@ -778,7 +779,7 @@ let ZOPEN = null, TAB2 = "coiffure";
 // Chaque dessin est mis à l'échelle d'après sa taille réelle : personne n'est minuscule, ratés compris.
 const FLY = a => !a.rate && (/^(songbird|parrot|owl|raptor|bat|butterfly|libellule|pigeon)$/.test(a.kind) || a.kind === "insect" && (a.o.fly || a.o.bee) || a.o.ptero || a.o.phoenix);
 function fitStage() {
-  const st = document.querySelector(".stage.duo2"), sv = st && st.querySelector("svg.perso"), kb = st && st.querySelector(".stagepet.kidbox"), pb = st && st.querySelector(".stagepet:not(.kidbox)"); if (!sv || !kb && !pb) return;
+  const st = document.querySelector(".stage.duo2"), sv = st && st.querySelector("svg.perso"), kb = st && st.querySelector(".stagepet.kidbox"), pb = st && st.querySelector(".stagepet:not(.kidbox):not(.flyer)"), fb = st && st.querySelector(".stagepet.flyer"); if (!sv || !kb && !pb && !fb) return;
   const m = sv.getScreenCTM(); if (!m || !m.a) return;
   let right = 320, low = 140, air = 118; // bord droit du corps habillé ; bord gauche près du sol ; bord gauche à hauteur de tête
   sv.querySelectorAll(".breathe path,.breathe ellipse,.breathe circle,.breathe rect,.breathe text,.breathe line,.breathe polygon").forEach(e => {
@@ -819,6 +820,8 @@ function fitStage() {
       else if (lg > 74 * m.a) family(pb, a, x0, lg, Math.min(lg * 1.15, 170 * m.a), 170 * m.d, 0, false);
       else { const w = Math.min(rw * .46, 130 * m.a); family(pb, a, rx, w, w, 130 * m.d, -6, false); pb.classList.add("front"); } // tenue très large : devant l'enfant, sans cacher le personnage
     } }
+  if (fb) { const a = ANIMAL_BY_ID[PET.flyer], x0 = b.left + 4, la = Math.max(m.a * (air - 8) + m.e - x0, 74 * m.a); // l'animal volant, en l'air à gauche de la tête
+    family(fb, a, x0, la, Math.min(la, 130 * m.a), 150 * m.d, 520, true); }
 }
 addEventListener("resize", fitStage);
 function zonePanel(z) {
@@ -895,7 +898,7 @@ function galleryPanel() {
 let MOOD = null;
 function viewCorps() {
   syncUnlocks(); syncDaily();
-  const v = BODY.view === "b" ? "b" : "f", comp = ANIMAL_BY_ID[PET.companion], kid = ANIMAL_BY_ID[PET.kid], c = comp ? petCare(comp.id) : null, art = GIFT.TAB[TAB.cur];
+  const v = BODY.view === "b" ? "b" : "f", comp = ANIMAL_BY_ID[PET.companion], flyer = PET.flyer && PET.flyer !== PET.companion ? ANIMAL_BY_ID[PET.flyer] : null, kid = ANIMAL_BY_ID[PET.kid], c = comp ? petCare(comp.id) : null, art = GIFT.TAB[TAB.cur];
   const fed = c ? (c.fedDays || 0) % FEED_FOR_BABY : 0, full = c && (c.babies || 0) >= MAX_BABIES, stg = c ? stgOf(comp.id) : 0, ask = dailyAsk();
   const look = (k, l) => `<div class="lookrow"><span>${l}</span>${CORPS.LOOKS[k].map(x => `<button class="sw ${BODY.look[k] === x ? "on" : ""}" style="background:${x}" data-act="look" data-k="${k}" data-v="${x}" aria-label="${l} ${x}"></button>`).join("")}</div>`;
   return `${resumeBanner()}<div class="duo"><section class="card serie"><span>Série quotidienne</span><b>🔥 ${DAILY.streak || 0} ${DAILY.streak > 1 ? "JOURS" : "JOUR"}</b></section>
@@ -904,7 +907,7 @@ function viewCorps() {
   <section class="card stagecard"><div class="subtabs">${[["f", "Face"], ["b", "Dos"]].map(([k, l]) => `<button data-act="bview" data-v="${k}" class="${v === k ? "on" : ""}">${l}</button>`).join("")}</div>
     <div class="stage ${comp || kid ? "duo2" : ""}">${persoSvg({ view: v, behind: GIFT.scene(eqv("decor") || "none"), click: true, names: ZONES, sel: ZOPEN, vb: comp || kid ? "-10 -62 640 716" : "-40 -62 480 716" })}
       ${art ? `<div class="hang">${GIFT.painting(art.id, 74)}</div>` : ""}
-      ${kid ? `<div class="stagepet kidbox">${petSvg(kid, "pet-svg" + joyCls(kid.id), { stage: true })}</div>` : ""}${comp ? `<div class="stagepet${kid ? " side" : ""}">${petSvg(comp, "pet-svg", { stage: true, ...(MOOD ? { mood: MOOD } : {}) })}<span class="stagebabies">${babiesSvg(comp.id, "pet-svg baby", true)}</span></div>` : ""}${ask ? `<button class="askbubble" data-act="ask"><b>${ask.nerf ? esc(ask.name) : `C'est quoi « ${esc(ask.name)} » ?`}</b></button>` : ""}</div>
+      ${kid ? `<div class="stagepet kidbox">${petSvg(kid, "pet-svg" + joyCls(kid.id), { stage: true })}</div>` : ""}${comp ? `<div class="stagepet${kid ? " side" : ""}">${petSvg(comp, "pet-svg", { stage: true, ...(MOOD ? { mood: MOOD } : {}) })}<span class="stagebabies">${babiesSvg(comp.id, "pet-svg baby", true)}</span></div>` : ""}${flyer ? `<div class="stagepet flyer">${petSvg(flyer, "pet-svg", { stage: true })}<span class="stagebabies">${babiesSvg(flyer.id, "pet-svg baby", true)}</span></div>` : ""}${ask ? `<button class="askbubble" data-act="ask"><b>${ask.nerf ? esc(ask.name) : `C'est quoi « ${esc(ask.name)} » ?`}</b></button>` : ""}</div>
     <div class="actions center"><button class="sm" data-act="rnd" ${BODY.got.length + WARD.got.length ? "" : "disabled"}>Tenue au hasard</button><button class="sm" data-act="off" ${worn().length ? "" : "disabled"}>Tout retirer</button></div>
     <p class="small center">Touche une zone pour voir ta progression et l'habiller · ${BODY.got.length}/${ACC.length} accessoires</p></section>
   <section class="card"><h2>Mon compagnon d'étude</h2>${comp ? `<div class="petcard"><div class="petbig">${petSvg(comp, "pet-svg lg", MOOD ? { mood: MOOD } : {})}${babiesSvg(comp.id, "pet-svg baby")}</div><div class="petinfo"><b>${esc(comp.name)}</b><span class="small">${esc(comp.species)}${c.babies ? ` · ${plural(c.babies, "bébé", "bébés")}` : ""}</span>
@@ -931,7 +934,7 @@ function menagerieList() {
 }
 function menagerieCards() {
   const L = menagerieList();
-  return (L.slice(0, MF.n).map(a => { const on = PET.companion === a.id, nb = (PET.care[a.id] || {}).babies || 0;
+  return (L.slice(0, MF.n).map(a => { const on = PET.companion === a.id || PET.flyer === a.id, nb = (PET.care[a.id] || {}).babies || 0;
     return `<div class="mcard ${on ? "comp" : ""}"><button class="fav ${PET.fav[a.id] ? "on" : ""}" data-act="fav" data-id="${a.id}" aria-label="Favori" aria-pressed="${!!PET.fav[a.id]}">${PET.fav[a.id] ? "♥" : "♡"}</button>${a.rate ? `<span class="rtag">raté</span>` : ""}<div class="top">${petSvg(a)}${babiesSvg(a.id)}</div><b>${esc(a.name)}</b><span class="small">${esc(a.species)}${nb ? ` · ${plural(nb, "bébé", "bébés")}` : ""}</span><button class="sm ${on ? "primary" : ""}" data-act="setComp" data-id="${a.id}">${on ? "⭐ Compagnon" : "Choisir"}</button></div>`; }).join("") || `<p class="small">Aucun animal ici pour l'instant.</p>`) + (L.length > MF.n ? `<button class="more" data-act="mMore">Voir plus (${L.length - MF.n})</button>` : "");
 }
 function viewMenagerie() {
@@ -1261,7 +1264,11 @@ const ACT = {
   kAll: el => { PET.hid = {}; if (el.dataset.d === "0") PET.kids.forEach(id => { PET.hid[id] = 1; }); save(K_PET, PET); render(); },
   kG: el => { KF.g = KF.g === el.dataset.k ? "" : el.dataset.k; KF.n = 60; render(); },
   kF: el => { KF.f = el.dataset.k; KF.n = 60; render(); }, kMore: () => { KF.n += 60; render(); },
-  setComp: el => { PET.companion = el.dataset.id; save(K_PET, PET); render(); toast(`${esc(ANIMAL_BY_ID[el.dataset.id].name)} t'accompagne !`, "ok"); },
+  setComp: el => { const id = el.dataset.id, a = ANIMAL_BY_ID[id], c = ANIMAL_BY_ID[PET.companion]; // un animal terrestre + un animal volant en même temps
+    if (PET.flyer === id || PET.companion === id) { if (PET.flyer === id) PET.flyer = null; render(); save(K_PET, PET); return; }
+    if (FLY(a) && c && !FLY(c)) { PET.flyer = id; save(K_PET, PET); render(); toast(`${esc(a.name)} vole avec toi !`, "ok"); return; }
+    if (!FLY(a) && c && FLY(c)) PET.flyer = PET.companion;
+    PET.companion = id; save(K_PET, PET); render(); toast(`${esc(ANIMAL_BY_ID[el.dataset.id].name)} t'accompagne !`, "ok"); },
   zoneQuiz: el => { const z = el.dataset.z; let l = (ZQ[z] || []).filter(q => status(q) !== "ok"); if (!l.length) l = ZQ[z] || []; zoneStart(z, l); },
   zonePool: el => zoneStart(el.dataset.z, (ZQ[el.dataset.z] || []).filter(q => status(q) === el.dataset.pool)),
   start: el => startSession(el.dataset.tab, el.dataset.pool),
