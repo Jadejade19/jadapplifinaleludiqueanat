@@ -1,5 +1,5 @@
-const CACHE = "jadjeudanat-v19";
-const FILES = ["./", "./index.html", "./style.css", "./app.js", "./corps-art.js", "./accessoires-art.js", "./animals-data.js", "./animals-data2.js", "./animals-data3.js", "./animals-art.js", "./animals-rates.js", "./rigolos-enfants.js", "./rigolos.js", "./compagnon-art.js", "./tableaux-data.js", "./cadeaux-art.js", "./garde-robe-art.js", "./parc.js",
+const CACHE = "jadjeudanat-v25";
+const FILES = ["./", "./index.html", "./style.css", "./app.js", "./corps-art.js", "./accessoires-art.js", "./animals-data.js", "./animals-data2.js", "./animals-data3.js", "./animals-art.js", "./animals-rates.js", "./rigolos-enfants.js", "./rigolos-enfants2.js", "./rigolos-enfants3.js", "./rigolos.js", "./compagnon-art.js", "./tableaux-data.js", "./cadeaux-art.js", "./garde-robe-art.js", "./garde-robe2.js", "./parc.js",
   "./questions.js", "./fiches-images.js", "./manifest.json", "./nunito.woff2", "./icon.svg", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
