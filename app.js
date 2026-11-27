@@ -62,6 +62,10 @@ const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); retur
 let PROG = load(K_PROG, {});       // id -> { r: 1|0 (dernier résultat), n: essais, ok: réussites, t: date }
 let SET = { reg: "all", len: 20, ...load(K_SET, {}) };
 let FLAGS = load(K_FLAG, {});      // id -> date
+// Module MSP (kiné) : progression à part (jamais mélangée aux QCM d'anatomie), mais l'XP, les animaux, les enfants et les croquettes sont communs
+const K_MSP = "revanat-msp-v1"; let MSPP = load(K_MSP, {}); // id de question MSP -> { r, n, ok, f, t }
+const mspOk = () => { let n = 0; for (const id in MSPP) n += MSPP[id].ok || 0; return n; };
+function mspLoad() { if (mspLoad.p) return mspLoad.p; mspLoad.p = Promise.all(["msp-data", "msp-patients"].map(loadPack)).then(() => loadPack("msp-data-otr")).then(() => loadPack("msp-data-otr2")).then(() => loadPack("msp-data-otr3")).then(() => loadPack("msp-data-otr4")).then(() => loadPack("msp")).then(() => render()).catch(() => { mspLoad.p = null; MSG = "Le module MSP n'a pas pu se charger : vérifie ta connexion internet."; location.hash = "#/g"; }); return mspLoad.p; }
 const K_OVR = "revanat-corrections-v1"; let OVR = load(K_OVR, {}); // corrections manuelles
 const applyOvr = () => { for (const id in OVR) { const q = BY_ID[id]; if (q) { q.q = OVR[id].q; q.a = OVR[id].a; if (q.m) { q.m = q.a.split(" ; "); q.d = q.d.filter(x => !q.m.includes(x)); } else q.d = q.d.filter(x => x !== q.a); } } };
 applyOvr();
@@ -308,6 +312,8 @@ function viewSettings() {
       <div class="actions"><button class="primary" data-act="export">Exporter ma progression</button><button data-act="import">Importer</button>
       <input type="file" id="importFile" accept="application/json,.json" class="hidden"></div>
       <div class="msg">${esc(msg)}</div></section>
+    <section class="card"><h2>🩺 Module MSP (kiné)</h2><p class="small">Révisions pour l'examen de MSP. Il ne change rien à l'anatomie : sans lui, tu peux tout gagner quand même. ${mspOk()} bonnes réponses MSP enregistrées.</p>
+      <div class="actions"><button data-act="toggleMsp">${SET.noMsp ? "Afficher le module MSP" : "Masquer le module MSP"}</button></div></section>
     <section class="card"><h2>📱 Installer l'application</h2>
       <p class="small">${STANDALONE() ? "✔ L'application est installée sur cet appareil." : IOS ? "Sur iPhone et iPad : ouvre cette page dans Safari, touche le bouton Partager (le carré avec une flèche vers le haut), puis « Sur l'écran d'accueil » et « Ajouter ». Ouvre ensuite l'application avec sa nouvelle icône : elle marche sans internet. Installe-la avant de commencer à jouer, car sur iPhone l'application installée ne reprend pas la progression de Safari (sinon, exporte puis importe-la)." : INSTALL ? "Sur Android, elle s'installe en une touche et marche ensuite sans internet." : "Sur Android : ouvre cette page dans Chrome, touche ⋮ en haut à droite, puis « Installer l'application » (ou « Ajouter à l'écran d'accueil »). Elle marche ensuite sans internet."}</p>
       <p class="small">Chaque personne qui l'installe a sa propre progression, ses animaux et sa garderie.</p>
@@ -440,7 +446,7 @@ if (bodyNew) { // reprise des anciennes versions : on ne perd aucun accessoire d
   syncUnlocks(true); save(K_BODY, BODY);
 }
 // ---------- XP et niveaux ----------
-const xp = () => { let n = 0; for (const id in PROG) n += PROG[id].ok || 0; return n * 10 + BODY.got.length * 25; };
+const xp = () => { let n = mspOk(); for (const id in PROG) n += PROG[id].ok || 0; return n * 10 + BODY.got.length * 25; };
 const need = L => 50 * L * (L - 1);
 const level = x => { let L = 1; while (need(L + 1) <= x) L++; return L; };
 const TITLES = [[1, "Première année"], [3, "Palpeuse en herbe"], [5, "Chasseuse d'insertions"], [8, "Dompteuse de nerfs"], [11, "Reine des ligaments"], [14, "Maîtresse du plexus"], [18, "Légende de l'anat"], [22, "Kiné d'or 🏆"], [28, "Déesse de l'anatomie"], [35, "Immortelle du plexus"]];
@@ -525,7 +531,7 @@ function goodAnswer() { // une bonne réponse : série, croquette, cadeau, anima
     const pool = ANIMALS.filter(a => !PET.got.includes(a.id));
     PET.goodSincePet = 0; PET.petRun = 0; PET.targetGood = randomTarget();
     const rigo = pool.filter(a => a.species === "Rigolos"); // un animal gagné sur quatre environ est un rigolo
-    if (pool.length) { const a = pickOne(rigo.length && Math.random() < .25 ? rigo : pool); PET.got.push(a.id); PET.dayCount++; petCare(a.id); PET.companion ||= a.id; PET.when[a.id] = Date.now(); out.pet = a.id; }
+    if (pool.length) { const a = pickOne(rigo.length && Math.random() < .25 ? rigo : pool); PET.got.push(a.id); PET.dayCount++; petCare(a.id); if (FLY(a)) PET.flyer ||= a.id; else PET.companion ||= a.id; PET.when[a.id] = Date.now(); out.pet = a.id; }
   }
   if (++PET.goodSinceKid >= PET.kidT) {
     const pool = KIDS.filter(a => !PET.kids.includes(a.id)); PET.goodSinceKid = 0; PET.kidT = kidTarget();
@@ -572,7 +578,7 @@ function toast(html, kind = "") { document.querySelectorAll(".toast").forEach(x 
 
 // le compagnon vient parler à l'écran
 function petSays(text) {
-  document.querySelectorAll(".petpop").forEach(x => x.remove()); const a = ANIMAL_BY_ID[PET.companion]; if (!text) return; if (!a) return toast(esc(text), "ok");
+  document.querySelectorAll(".petpop").forEach(x => x.remove()); const a = ANIMAL_BY_ID[PET.companion] || ANIMAL_BY_ID[PET.flyer]; if (!text) return; if (!a) return toast(esc(text), "ok");
   const d = document.createElement("div"); d.className = "petpop"; d.setAttribute("role", "status"); d.innerHTML = `<div class="bubble">${esc(text)}</div>${petSvg(a, "pet-svg")}`; document.body.appendChild(d);
   setTimeout(() => d.classList.add("out"), 4200); setTimeout(() => d.remove(), 4800);
 }
@@ -623,7 +629,8 @@ function viewTab(tab) {
   <section class="card"><label for="len"><b>Nombre de QCM par série</b></label>
     <div class="range"><input id="len" type="range" min="5" max="100" step="5" value="${Math.min(len, 100)}" data-set="len"><output id="lenOut">${len >= 100 ? "Tous" : len}</output></div>
     <div class="small">Tout à droite = toutes les questions de la case choisie.</div></section>
-  <a class="btn primary revbtn" href="#/rev/${t.id}">📖 Révision : cours${t.id === "nerf" ? " (et l'explorateur vertèbre → nerfs)" : t.id === "g" ? " de toutes les structures" : ""}</a>`;
+  <a class="btn primary revbtn" href="#/rev/${t.id}">📖 Révision : cours${t.id === "nerf" ? " (et l'explorateur vertèbre → nerfs)" : t.id === "g" ? " de toutes les structures" : ""}</a>
+  ${t.id === "g" && !SET.noMsp ? `<a class="card mspentry" href="#/msp"><span class="ri">🩺</span><span><b>Révisions MSP (kiné)</b><span class="small">Pathologies, QCM, cas cliniques et simulations d'examen. Progression séparée de l'anatomie ; animaux, enfants, croquettes et XP gagnés en commun.</span></span><span class="go" aria-hidden="true">›</span></a>` : ""}`;
 }
 
 // ---------- « Déjà eu bon » : 0 = toutes, 1 = eu bon directement, n ≥ 2 = ratées au moins n − 1 fois ----------
@@ -632,12 +639,12 @@ const okTxt = n => n === 0 ? "Toutes" : n === 1 ? "Eu bon directement" : n === 2
 // ---------- Jouer avec le compagnon : questions réussies, mais pas du premier coup ----------
 const replayable = () => QS.filter(q => { const p = PROG[q.id]; return p && p.r && (p.f !== undefined ? !p.f : (p.n || 0) > (p.ok || 0)); });
 function startPlay(list, label) {
-  const a = ANIMAL_BY_ID[PET.companion]; if (!a || !list.length) return; let l = shuffle(list.map(q => q.id)); if (SET.len < 100) l = l.slice(0, SET.len);
-  MOOD = null; document.querySelector(".modal")?.remove(); startSession("corps", "ok", l, label || `Jeu avec ${a.name}`); SESSION.play = a.id; saveSession();
+  const ids = compIds(), a = ANIMAL_BY_ID[ids[0]]; if (!a || !list.length) return; let l = shuffle(list.map(q => q.id)); if (SET.len < 100) l = l.slice(0, SET.len);
+  MOOD = null; document.querySelector(".modal")?.remove(); startSession("menagerie", "ok", l, label || `Jeu avec ${ids.map(id => ANIMAL_BY_ID[id].name).join(" et ")}`); SESSION.play = a.id; SESSION.play2 = ids[1] || null; saveSession();
 }
-function endPlay(S) { // fin de partie : bonheur, et une croquette une fois par jour si on a répondu à 5 questions
-  if (!S || !S.play || S.paid || !ANIMAL_BY_ID[S.play]) return; S.paid = true; const c = petCare(S.play), tk = todayKey(), n = S.ok + S.ko; if (!n) return;
-  c.happiness = Math.min(100, (c.happiness || 0) + 5); if (n >= 5 && DAILY.lastPlayDay !== tk) { DAILY.lastPlayDay = tk; DAILY.kibbles = (DAILY.kibbles || 0) + 1; S.playKib = true; } save(K_PET, PET); save(K_DAILY, DAILY);
+function endPlay(S) { // fin de partie : bonheur (pour les deux compagnons), et une croquette une fois par jour si on a répondu à 5 questions
+  if (!S || !S.play || S.paid || !ANIMAL_BY_ID[S.play]) return; S.paid = true; const tk = todayKey(), n = S.ok + S.ko; if (!n) return;
+  for (const id of [S.play, S.play2]) if (ANIMAL_BY_ID[id]) { const c = petCare(id); c.happiness = Math.min(100, (c.happiness || 0) + 5); } if (n >= 5 && DAILY.lastPlayDay !== tk) { DAILY.lastPlayDay = tk; DAILY.kibbles = (DAILY.kibbles || 0) + 1; S.playKib = true; } save(K_PET, PET); save(K_DAILY, DAILY);
 }
 // ---------- « C'est quoi X ? » : selon son âge, l'enfant pose 0, 1, 2 ou 3 questions par jour ----------
 const KIDH = [.22, .27, .36, .46, .58, .8]; // taille de l'enfant par rapport au personnage, à chaque étape de sa vie
@@ -699,7 +706,7 @@ function viewQuiz() {
   if (!S) return `<div class="card">Aucune série en cours. <a href="#/g">Retour</a></div>`;
   const back = "#/" + (S.tab || "g");
   if (S.pos >= S.ids.length) {
-    const kid = S.ask && ANIMAL_BY_ID[S.ask.kid], tot = S.ok + S.ko, p = tot ? Math.round(S.ok / tot * 100) : 0, comp = ANIMAL_BY_ID[PET.companion];
+    const kid = S.ask && ANIMAL_BY_ID[S.ask.kid], tot = S.ok + S.ko, p = tot ? Math.round(S.ok / tot * 100) : 0, comp = ANIMAL_BY_ID[PET.companion] || ANIMAL_BY_ID[PET.flyer];
     return `<section class="card bilan"><h2>${S.play ? "Partie terminée" : "Série terminée"}</h2>${kid ? petSvg(kid, "pet-svg lg" + joyCls(kid.id, true), S.candyWon || S.kibWon ? { mood: "happy" } : {}) : comp ? petSvg(comp, "pet-svg lg") : ""}
       ${kid ? S.candyWon ? `<p class="big candyrow">${CANDY} ${esc(kid.name)} te donne un bonbon !</p><p class="small">« Maintenant je sais ce que c'est, merci ! » Le bonbon sert à effacer une erreur et à garder ta série. Tu en as ${PET.candy}.</p>` : S.kibWon ? `<p class="big candyrow">${KIB} ${esc(kid.name)} te donne ${S.kibWon} croquettes !</p>` : `<p>${S.askCounted ? `« Merci d'avoir essayé ! » Il faut tout réussir pour gagner ${S.ask.st === 1 ? "les croquettes" : "le bonbon"}.` : "« Tu m'expliques la suite plus tard ? » Reviens toucher la bulle quand tu veux aujourd'hui."}</p>` : ""}
       <p class="big">${S.ok} / ${tot} bonnes réponses${tot ? ` (${p} %)` : ""}</p>${tot ? progressBlock({ ok: S.ok, ko: S.ko, todo: 0, total: tot }) : ""}
@@ -768,7 +775,7 @@ function answer(i) {
   S.gain = (good ? 10 : 0) + S.ev.fresh.length * 25; S.xp = (S.xp || 0) + S.gain;
   const lv1 = level(xp()); S.lvUp = lv1 > lv0 ? lv1 : 0; S.ev.gearLv = syncLevel();
   S.won ||= []; S.ev.fresh.forEach(id => S.won.push({ t: "acc", id })); for (const id of [S.ev.pet, S.ev.rate, S.ev.kid]) if (id) S.won.push({ t: "pet", id }); for (const id of [S.ev.gear10, ...S.ev.gearLv]) if (id) S.won.push({ t: "gear", id });
-  if (good && S.play && ANIMAL_BY_ID[S.play]) { const c = petCare(S.play); c.happiness = Math.min(100, (c.happiness || 0) + 2); save(K_PET, PET); }
+  if (good && S.play) { for (const id of [S.play, S.play2]) if (ANIMAL_BY_ID[id]) { const c = petCare(id); c.happiness = Math.min(100, (c.happiness || 0) + 2); } save(K_PET, PET); }
   if (good) S.ok++; else { S.ko++; (S.wrong ||= []).push(q.id); }
   saveSession(); render(); petSays(S.say);
 }
@@ -778,6 +785,7 @@ let ZOPEN = null, TAB2 = "coiffure";
 // place du compagnon : l'espace libre à droite du corps habillé (mesuré), sans jamais le recouvrir ; le décor et le cadrage ne bougent pas.
 // Chaque dessin est mis à l'échelle d'après sa taille réelle : personne n'est minuscule, ratés compris.
 const FLY = a => !a.rate && (/^(songbird|parrot|owl|raptor|bat|butterfly|libellule|pigeon)$/.test(a.kind) || a.kind === "insect" && (a.o.fly || a.o.bee) || a.o.ptero || a.o.phoenix);
+{ const c0 = ANIMAL_BY_ID[PET.companion]; if (c0 && FLY(c0)) { if (!PET.flyer || PET.flyer === c0.id) PET.flyer = c0.id; PET.companion = null; save(K_PET, PET); } } // ancienne version : un animal volant occupait la place du compagnon terrestre
 function fitStage() {
   const st = document.querySelector(".stage.duo2"), sv = st && st.querySelector("svg.perso"), kb = st && st.querySelector(".stagepet.kidbox"), pb = st && st.querySelector(".stagepet:not(.kidbox):not(.flyer)"), fb = st && st.querySelector(".stagepet.flyer"); if (!sv || !kb && !pb && !fb) return;
   const m = sv.getScreenCTM(); if (!m || !m.a) return;
@@ -905,17 +913,11 @@ function viewCorps() {
     <section class="cadre">${art ? `<button class="nav" data-act="artNav" data-d="-1" aria-label="Tableau précédent" ${TAB.got.length > 1 ? "" : "disabled"}>‹</button><button class="cadrein" data-act="galOpen" aria-label="Changer de tableau"><img class="artimg" data-art="${art.id}" alt="${esc(art.name)}"><span><b>${esc(art.name)}</b><span class="small">${esc(art.by)}</span></span></button><button class="nav" data-act="artNav" data-d="1" aria-label="Tableau suivant" ${TAB.got.length > 1 ? "" : "disabled"}>›</button>` : `<span class="small">Ton premier tableau arrive demain</span>`}</section></div>
   <section class="card"><div class="lvrow">${lvBlock()}</div>${dailyStrip()}</section>
   <section class="card stagecard"><div class="subtabs">${[["f", "Face"], ["b", "Dos"]].map(([k, l]) => `<button data-act="bview" data-v="${k}" class="${v === k ? "on" : ""}">${l}</button>`).join("")}</div>
-    <div class="stage ${comp || kid ? "duo2" : ""}">${persoSvg({ view: v, behind: GIFT.scene(eqv("decor") || "none"), click: true, names: ZONES, sel: ZOPEN, vb: comp || kid ? "-10 -62 640 716" : "-40 -62 480 716" })}
+    <div class="stage ${comp || kid || flyer ? "duo2" : ""}">${persoSvg({ view: v, behind: GIFT.scene(eqv("decor") || "none"), click: true, names: ZONES, sel: ZOPEN, vb: comp || kid || flyer ? "-10 -62 640 716" : "-40 -62 480 716" })}
       ${art ? `<div class="hang">${GIFT.painting(art.id, 74)}</div>` : ""}
-      ${kid ? `<div class="stagepet kidbox">${petSvg(kid, "pet-svg" + joyCls(kid.id), { stage: true })}</div>` : ""}${comp ? `<div class="stagepet${kid ? " side" : ""}">${petSvg(comp, "pet-svg", { stage: true, ...(MOOD ? { mood: MOOD } : {}) })}<span class="stagebabies">${babiesSvg(comp.id, "pet-svg baby", true)}</span></div>` : ""}${flyer ? `<div class="stagepet flyer">${petSvg(flyer, "pet-svg", { stage: true })}<span class="stagebabies">${babiesSvg(flyer.id, "pet-svg baby", true)}</span></div>` : ""}${ask ? `<button class="askbubble" data-act="ask"><b>${ask.nerf ? esc(ask.name) : `C'est quoi « ${esc(ask.name)} » ?`}</b></button>` : ""}</div>
+      ${kid ? `<div class="stagepet kidbox">${petSvg(kid, "pet-svg" + joyCls(kid.id), { stage: true })}</div>` : ""}${comp ? `<div class="stagepet${kid ? " side" : ""}">${petSvg(comp, "pet-svg", { stage: true, ...(MOOD ? { mood: MOOD } : {}) })}<span class="stagebabies">${babiesSvg(comp.id, "pet-svg baby", true)}</span></div>` : ""}${flyer ? `<div class="stagepet flyer">${petSvg(flyer, "pet-svg", { stage: true, ...(MOOD ? { mood: MOOD } : {}) })}<span class="stagebabies">${babiesSvg(flyer.id, "pet-svg baby", true)}</span></div>` : ""}${ask ? `<button class="askbubble" data-act="ask"><b>${ask.nerf ? esc(ask.name) : `C'est quoi « ${esc(ask.name)} » ?`}</b></button>` : ""}</div>
     <div class="actions center"><button class="sm" data-act="rnd" ${BODY.got.length + WARD.got.length ? "" : "disabled"}>Tenue au hasard</button><button class="sm" data-act="off" ${worn().length ? "" : "disabled"}>Tout retirer</button></div>
     <p class="small center">Touche une zone pour voir ta progression et l'habiller · ${BODY.got.length}/${ACC.length} accessoires</p></section>
-  <section class="card"><h2>Mon compagnon d'étude</h2>${comp ? `<div class="petcard"><div class="petbig">${petSvg(comp, "pet-svg lg", MOOD ? { mood: MOOD } : {})}${babiesSvg(comp.id, "pet-svg baby")}</div><div class="petinfo"><b>${esc(comp.name)}</b><span class="small">${esc(comp.species)}${c.babies ? ` · ${plural(c.babies, "bébé", "bébés")}` : ""}</span>
-      <span class="joyrow">${FACE(c.happiness || 0)}<span class="xpbar joy"><i style="width:${c.happiness || 0}%"></i></span></span><span class="small">Bonheur : ${c.happiness || 0} %</span>
-      <span class="stages" aria-label="Taille : ${stageName(comp.id, stg)}">${stepsOf(comp.id).map((s, k) => `<i class="${k <= stg ? "on" : ""}"></i>`).join("")}</span><span class="small">${isHuman(comp.id) ? "Âge" : "Taille"} : <b>${stageName(comp.id, stg)}</b>${stg < stepsOf(comp.id).length - 1 ? ` · ${plural(stepsOf(comp.id)[stg + 1] - (c.fedDays || 0), "croquette")} avant de devenir ${stageName(comp.id, stg + 1)}` : " · il a fini de grandir !"}</span>
-      <div class="kibrow" aria-label="${fed} croquettes sur ${FEED_FOR_BABY}">${full ? `<span class="small">Famille au complet ! 💕</span>` : Array.from({ length: FEED_FOR_BABY }, (_, i) => `<span class="${i < fed ? "" : "off"}">${KIB}</span>`).join("") + `<span class="small">${FEED_FOR_BABY - fed} avant un bébé</span>`}</div>
-      <div class="petacts"><button data-act="feedPet" title="Donner une croquette">${ICO.bowl}<span>Nourrir (${DAILY.kibbles || 0})</span></button><button data-act="playPet" title="Jouer">${ICO.play}<span>Jouer (${replayable().length})</span></button><button data-act="sleepPet" title="Dormir">${ICO.bed}<span>${MOOD === "sleep" ? "Réveiller" : "Dormir"}</span></button><a href="#/menagerie" title="Changer de compagnon">${ICO.swap}<span>Changer</span></a></div></div></div>` : `<p class="small">${PET.got.length ? "Tu n'as pas encore choisi de compagnon." : "Tu gagneras ton premier animal en répondant aux QCM."}</p><a class="btn primary" href="#/menagerie">Ouvrir la ménagerie</a>`}</section>
-  <section class="card"><h2>L'enfant que je garde</h2>${kidCard(kid, ask)}</section>
   ${!OPENS.zprog ? foldShut("zprog", "Progression détaillée des zones") : `<details class="card fold" id="zprog" open><summary>Progression détaillée des zones</summary><div class="zones">${Object.keys(ZONES).map(z => { const s = zstat(z), open = ZOPEN === z; return `<div class="zitem ${open ? "open" : ""}" id="z-${z}"><button class="zhead" data-act="zone" data-z="${z}" data-from="list" aria-expanded="${open}"><span class="zn">${esc(ZONES[z])}</span><span class="zbar"><i style="width:${s.m * 100}%;background:${s.m >= 1 ? "var(--gold)" : zcol(z) || "transparent"}"></i></span><span class="zp">${s.p} %</span><span class="small zc">${gotIn(z).length}/20</span><span class="chev" aria-hidden="true">▾</span></button>${open ? zonePanel(z) : ""}</div>`; }).join("")}</div></details>`}
   ${shopPanel()}${gearPanel()}${galleryPanel()}${giftPanel()}
   ${!OPENS.moi ? foldShut("moi", "Mon personnage") : `<details class="card fold" id="moi" open><summary>Mon personnage</summary>${look("skin", "Peau")}${look("hair", "Cheveux")}${look("eyes", "Yeux")}</details>`}`;
@@ -930,12 +932,32 @@ function menagerieList() {
   const qn = norm(MF.q), own = ownedIds(), idx = new Map(own.map((id, i) => [id, i])), nb = a => (PET.care[a.id] || {}).babies || 0, hap = a => (PET.care[a.id] || {}).happiness || 0;
   const L = own.map(id => ANIMAL_BY_ID[id]).filter(a => a && (!MF.sp || a.species === MF.sp) && (!qn || norm(a.name).includes(qn)) && (MF.f === "all" || MF.f === "ok" && !a.rate || MF.f === "rate" && a.rate || MF.f === "rigo" && a.species === "Rigolos" || MF.f === "fav" && PET.fav[a.id] || MF.f === "baby" && nb(a)));
   const S = { recent: (a, b) => (PET.when[b.id] || 0) - (PET.when[a.id] || 0) || idx.get(b.id) - idx.get(a.id), old: (a, b) => (PET.when[a.id] || 0) - (PET.when[b.id] || 0) || idx.get(a.id) - idx.get(b.id), name: (a, b) => a.name.localeCompare(b.name, "fr"), species: (a, b) => a.species.localeCompare(b.species, "fr") || a.name.localeCompare(b.name, "fr"), joy: (a, b) => hap(b) - hap(a) || nb(b) - nb(a), fam: (a, b) => nb(b) - nb(a) || a.name.localeCompare(b.name, "fr") };
-  L.sort((a, b) => (b.id === PET.companion) - (a.id === PET.companion) || S[MF.sort](a, b)); return L;
+  const on = a => a.id === PET.companion || a.id === PET.flyer; L.sort((a, b) => on(b) - on(a) || S[MF.sort](a, b)); return L;
 }
 function menagerieCards() {
   const L = menagerieList();
   return (L.slice(0, MF.n).map(a => { const on = PET.companion === a.id || PET.flyer === a.id, nb = (PET.care[a.id] || {}).babies || 0;
-    return `<div class="mcard ${on ? "comp" : ""}"><button class="fav ${PET.fav[a.id] ? "on" : ""}" data-act="fav" data-id="${a.id}" aria-label="Favori" aria-pressed="${!!PET.fav[a.id]}">${PET.fav[a.id] ? "♥" : "♡"}</button>${a.rate ? `<span class="rtag">raté</span>` : ""}<div class="top">${petSvg(a)}${babiesSvg(a.id)}</div><b>${esc(a.name)}</b><span class="small">${esc(a.species)}${nb ? ` · ${plural(nb, "bébé", "bébés")}` : ""}</span><button class="sm ${on ? "primary" : ""}" data-act="setComp" data-id="${a.id}">${on ? "⭐ Compagnon" : "Choisir"}</button></div>`; }).join("") || `<p class="small">Aucun animal ici pour l'instant.</p>`) + (L.length > MF.n ? `<button class="more" data-act="mMore">Voir plus (${L.length - MF.n})</button>` : "");
+    return `<div class="mcard ${on ? "comp" : ""}"><button class="fav ${PET.fav[a.id] ? "on" : ""}" data-act="fav" data-id="${a.id}" aria-label="Favori" aria-pressed="${!!PET.fav[a.id]}">${PET.fav[a.id] ? "♥" : "♡"}</button>${a.rate ? `<span class="rtag">raté</span>` : ""}<div class="top">${petSvg(a)}${babiesSvg(a.id)}</div><b>${esc(a.name)}</b><span class="small">${esc(a.species)}${nb ? ` · ${plural(nb, "bébé", "bébés")}` : ""}</span><button class="sm ${on ? "primary" : ""}" data-act="setComp" data-id="${a.id}">${on ? (FLY(a) ? "⭐ Compagnon volant" : "⭐ Compagnon") : FLY(a) ? "🪽 Choisir" : "🐾 Choisir"}</button></div>`; }).join("") || `<p class="small">Aucun animal ici pour l'instant.</p>`) + (L.length > MF.n ? `<button class="more" data-act="mMore">Voir plus (${L.length - MF.n})</button>` : "");
+}
+// ---------- Mon compagnon d'étude : le terrestre et le volant côte à côte (page Ménagerie) ----------
+const SLEEP_MAX = 3, SLEEP_GAP = 10 * 60000, SLEEP_JOY = 10; // 3 siestes récompensées par jour, à plus de 10 min d'écart : +10 % de bonheur pour toute la ménagerie
+const sleepState = () => { const tk = todayKey(); if (!PET.sleep || PET.sleep.day !== tk) PET.sleep = { day: tk, n: 0, last: 0 }; return PET.sleep; };
+const sleepInfo = () => { const z = sleepState(), w = z.last ? SLEEP_GAP - (Date.now() - z.last) : 0; return z.n >= SLEEP_MAX ? "3/3 siestes récompensées aujourd'hui" : w > 0 ? `prochaine sieste récompensée dans ${Math.ceil(w / 60000)} min` : `sieste : +${SLEEP_JOY} % de bonheur pour toute la ménagerie (${z.n}/${SLEEP_MAX} aujourd'hui)`; };
+const compIds = () => [PET.companion, PET.flyer].filter((id, i, L) => id && ANIMAL_BY_ID[id] && L.indexOf(id) === i);
+function compPanel() {
+  const L = compIds().map(id => ANIMAL_BY_ID[id]), has = PET.got.length + PET.rates.length;
+  if (!L.length) return `<section class="card"><h2>Mon compagnon d'étude</h2><p class="small">${has ? "Choisis ci-dessous un compagnon terrestre 🐾 et/ou un compagnon volant 🪽 : ils peuvent t'accompagner tous les deux." : "Tu gagneras ton premier animal en répondant aux QCM."}</p></section>`;
+  const one = a => { const c = petCare(a.id), fed = (c.fedDays || 0) % FEED_FOR_BABY, full = (c.babies || 0) >= MAX_BABIES, stg = stgOf(a.id), S = stepsOf(a.id);
+    return `<div class="compone" data-id="${a.id}"><div class="petbig">${petSvg(a, "pet-svg lg", MOOD ? { mood: MOOD } : {})}${babiesSvg(a.id, "pet-svg baby")}</div>
+      <b>${esc(a.name)}</b><span class="small">${FLY(a) ? "🪽 Volant" : "🐾 Terrestre"} · ${esc(a.species)}${c.babies ? ` · ${plural(c.babies, "bébé", "bébés")}` : ""}</span>
+      <span class="joyrow">${FACE(c.happiness || 0)}<span class="xpbar joy"><i style="width:${c.happiness || 0}%"></i></span></span><span class="small">Bonheur : ${c.happiness || 0} %</span>
+      <span class="stages" aria-label="Taille : ${stageName(a.id, stg)}">${S.map((s, k) => `<i class="${k <= stg ? "on" : ""}"></i>`).join("")}</span><span class="small">${isHuman(a.id) ? "Âge" : "Taille"} : <b>${stageName(a.id, stg)}</b>${stg < S.length - 1 ? ` · encore ${plural(S[stg + 1] - (c.fedDays || 0), "croquette")}` : " · a fini de grandir"}</span>
+      <div class="kibrow" aria-label="${fed} croquettes sur ${FEED_FOR_BABY}">${full ? `<span class="small">Famille au complet ! 💕</span>` : Array.from({ length: FEED_FOR_BABY }, (_, i) => `<span class="${i < fed ? "" : "off"}">${KIB}</span>`).join("") + `<span class="small">${FEED_FOR_BABY - fed} avant un bébé</span>`}</div>
+      <button class="sm" data-act="feedPet" data-id="${a.id}" ${DAILY.kibbles > 0 ? "" : "disabled"}>${ICO.bowl}<span>Nourrir</span></button></div>`; };
+  return `<section class="card" id="compcard"><h2>Mon compagnon d'étude</h2><div class="compduo ${L.length > 1 ? "two" : ""}">${L.map(one).join("")}</div>
+    <p class="small center">${KIB} ${plural(DAILY.kibbles || 0, "croquette")} à donner · ${sleepInfo()}</p>
+    <div class="petacts k2"><button data-act="playPet" title="Jouer">${ICO.play}<span>Jouer (${replayable().length})</span></button><button data-act="sleepPet" title="Dormir">${ICO.bed}<span>${MOOD === "sleep" ? "Réveiller" : L.length > 1 ? "Dormir (les 2)" : "Dormir"}</span></button></div>
+    <p class="small center">Touche « Choisir » sur un animal ci-dessous : un terrestre 🐾 et un volant 🪽 peuvent t'accompagner en même temps.</p></section>`;
 }
 function viewMenagerie() {
   syncDaily(); const n = PET.got.length, by = {}; ANIMALS.forEach(a => { (by[a.species] ||= [0, 0])[1]++; if (PET.got.includes(a.id)) by[a.species][0]++; });
@@ -943,7 +965,7 @@ function viewMenagerie() {
   if (!own.length) return `<section class="card empty"><h2>Ma ménagerie</h2><p>${ANIMALS.length} animaux t'attendent !</p><p class="small">Ton premier arrive dans ${petLeft()}. Tu peux en gagner jusqu'à ${MAX_DAY} par jour.</p><a class="btn primary" href="#/g">Commencer une série</a></section>`;
   const F = [["all", `Tous (${own.length})`], ...(PET.rates.length ? [["ok", "Classiques"], ["rate", "Ratés"]] : []), ...(own.some(id => ANIMAL_BY_ID[id].species === "Rigolos") ? [["rigo", "Rigolos"]] : []), ["fav", `Favoris (${Object.values(PET.fav).filter(Boolean).length})`], ["baby", "Avec bébés"]];
   const SO = [["recent", "Plus récents"], ["old", "Plus anciens"], ["name", "Nom (A à Z)"], ["species", "Espèce"], ["joy", "Bonheur"], ["fam", "Nombre de bébés"]];
-  return `<section class="card"><h2>Ma ménagerie</h2><p class="big">${n} / ${ANIMALS.length} animaux${babies ? ` · ${plural(babies, "bébé", "bébés")}` : ""}</p><div class="xpbar"><i style="width:${pct(n, ANIMALS.length)}%"></i></div>
+  return `${compPanel()}<section class="card"><h2>Ma ménagerie</h2><p class="big">${n} / ${ANIMALS.length} animaux${babies ? ` · ${plural(babies, "bébé", "bébés")}` : ""}</p><div class="xpbar"><i style="width:${pct(n, ANIMALS.length)}%"></i></div>
     <p class="small">${PET.dayCount >= MAX_DAY ? `${MAX_DAY} animaux gagnés aujourd'hui : la suite demain !` : `Prochain animal dans ${petLeft()} (${PET.dayCount}/${MAX_DAY} aujourd'hui).`}</p>
     <details class="fold sub" id="mfind" ${OPENS.mfind ? "open" : ""}><summary>Rechercher et trier${MF.q || MF.sp || MF.f !== "all" ? ` <span class="small">filtre actif</span>` : ""}</summary><div class="chips">${F.map(([k, l]) => `<button data-act="mF" data-k="${k}" class="${MF.f === k ? "on" : ""}">${l}</button>`).join("")}</div>
     <div class="mfilter"><input type="search" id="msearch" placeholder="Rechercher un animal…" value="${esc(MF.q)}"><select id="msp" aria-label="Espèce"><option value="">Toutes les espèces</option>${Object.entries(by).map(([s, [g, t]]) => `<option value="${esc(s)}" ${MF.sp === s ? "selected" : ""} ${spOwn.has(s) ? "" : "disabled"}>${esc(s)} (${g}/${t})</option>`).join("")}</select><select id="msort" aria-label="Trier par">${SO.map(([k, l]) => `<option value="${k}" ${MF.sort === k ? "selected" : ""}>Tri : ${l}</option>`).join("")}</select></div></details></section>
@@ -1182,11 +1204,12 @@ function render() {
     else if (p0 === "sync") { MSG = importWidget(p1 || ""); history.replaceState(null, "", "#/widget"); title = "Widget"; html = viewWidget(); }
     else if (p0 === "widget") { title = "Widget"; html = viewWidget(); }
     else if (p0 === "reglages") { title = "Réglages"; html = viewSettings(); }
+    else if (p0 === "msp") { title = "MSP"; if (window.MSPV) { const r = MSPV.view(route().slice(1)); title = r.title || "MSP"; html = r.html; } else { mspLoad(); html = `<div class="card">Chargement du module MSP… <span class="small">(il faut une connexion internet la première fois)</span></div>`; } }
     else { tab = p0 = "g"; html = viewTab("g"); }
   } catch (e) { console.error(e); html = `<div class="card">Erreur : ${esc(e.message)} <a href="#/g">Accueil</a></div>`; }
   renderTabs(tab, p0 === "rev" ? "rev/" : "");
   $("#app").innerHTML = html; $("#title").textContent = title; document.body.classList.toggle("inquiz", p0 === "quiz" && !!SESSION && SESSION.pos < SESSION.ids.length);
-  const nav = TABS.some(t => t.id === p0) || p0 === "quiz" ? "g" : ["rev", "fiche", "fiches", "vert", "nx"].includes(p0) ? "fiches" : p0 === "widget" ? "reglages" : p0;
+  const nav = TABS.some(t => t.id === p0) || p0 === "quiz" || p0 === "msp" ? "g" : ["rev", "fiche", "fiches", "vert", "nx"].includes(p0) ? "fiches" : p0 === "widget" ? "reglages" : p0;
   document.querySelectorAll(".bottom-nav a").forEach(a => a.classList.toggle("active", a.dataset.n === nav));
   if (p0 === "reglages") offlineInfo();
   fitStage(); parkStart(); offCard(); fitStage(); hydrateImgs(); hydrateArts(); LAST = location.hash;
@@ -1230,12 +1253,18 @@ const ACT = {
   gearOff: () => { const q = gearSet(); for (const s in q) delete q[s]; save(K_PET, PET); render(); },
   gearRnd: () => { const q = gearSet(); for (const s in q) delete q[s]; for (const g of shuffle(PET.gear.got.map(id => GEAR.byId[id]))) if (!q[g.s] && Math.random() < .75) q[g.s] = g.id; save(K_PET, PET); render(); },
   playPet: () => {
-    if (!ANIMAL_BY_ID[PET.companion]) return; const list = replayable(); if (list.length) return startPlay(list);
+    const ids = compIds(); if (!ids.length) return; const list = replayable(); if (list.length) return startPlay(list);
     const ko = QS.filter(q => status(q) === "ko");
-    modal(`<h2>Rien à rejouer pour l'instant</h2>${petSvg(ANIMAL_BY_ID[PET.companion], "pet-svg lg")}<p>Ce jeu reprend les questions que tu as réussies, mais pas du premier coup.</p><p class="small">${ko.length ? "Tu peux jouer avec tes échecs : une fois réussis, ils arriveront ici." : "Réponds à quelques séries, puis reviens jouer !"}</p><div class="actions center">${ko.length ? `<button class="primary" data-act="playKo">Jouer avec mes échecs (${ko.length})</button>` : ""}<button data-act="closeM">Fermer</button></div>`);
+    modal(`<h2>Rien à rejouer pour l'instant</h2>${ids.map(id => petSvg(ANIMAL_BY_ID[id], "pet-svg lg")).join("")}<p>Ce jeu reprend les questions que tu as réussies, mais pas du premier coup.</p><p class="small">${ko.length ? "Tu peux jouer avec tes échecs : une fois réussis, ils arriveront ici." : "Réponds à quelques séries, puis reviens jouer !"}</p><div class="actions center">${ko.length ? `<button class="primary" data-act="playKo">Jouer avec mes échecs (${ko.length})</button>` : ""}<button data-act="closeM">Fermer</button></div>`);
   },
   playKo: () => startPlay(QS.filter(q => status(q) === "ko")),
-  sleepPet: () => { const id = PET.companion; if (!id) return; MOOD = MOOD === "sleep" ? null : "sleep"; const c = petCare(id), tk = todayKey(), first = MOOD && c.lastSleep !== tk; if (first) { c.lastSleep = tk; c.happiness = Math.min(100, (c.happiness || 0) + 5); save(K_PET, PET); } render(); toast(MOOD ? (first ? "Bonne sieste ! Bonheur +5 %" : "Chut, il dort…") : "Bien reposé !", "ok"); },
+  sleepPet: () => { // les compagnons dorment ensemble ; la sieste récompense toute la ménagerie, 3 fois par jour à plus de 10 min d'écart
+    const n = compIds().length; if (!n) return; if (MOOD === "sleep") { MOOD = null; render(); return toast(n > 1 ? "Bien reposés !" : "Bien reposé !", "ok"); }
+    MOOD = "sleep"; const z = sleepState(), now = Date.now(); let msg;
+    if (z.n >= SLEEP_MAX) msg = `Chut, ${n > 1 ? "ils dorment" : "il dort"}… (déjà ${SLEEP_MAX} siestes récompensées aujourd'hui)`;
+    else if (z.last && now - z.last < SLEEP_GAP) msg = `Chut, ${n > 1 ? "ils dorment" : "il dort"}… Prochaine sieste récompensée dans ${Math.ceil((SLEEP_GAP - (now - z.last)) / 60000)} min`;
+    else { z.n++; z.last = now; ownedIds().forEach(id => { const c = petCare(id); c.happiness = Math.min(100, (c.happiness || 0) + SLEEP_JOY); }); save(K_PET, PET); msg = `Bonne sieste ! +${SLEEP_JOY} % de bonheur pour toute la ménagerie (${z.n}/${SLEEP_MAX} aujourd'hui)`; }
+    render(); toast(msg, "ok"); },
   artNav: el => { const i = TAB.got.indexOf(TAB.cur), n = TAB.got.length; if (!n) return; TAB.cur = TAB.got[(i + Number(el.dataset.d) + n) % n]; save(K_TAB, TAB); render(); },
   galOpen: () => { GALOPEN = true; render(); document.getElementById("gal")?.scrollIntoView({ behavior: "smooth", block: "start" }); },
   expose: el => { if (TAB.got.includes(el.dataset.id)) { TAB.cur = el.dataset.id; save(K_TAB, TAB); } document.querySelector(".modal")?.remove(); render(); toast("Tableau exposé !", "ok"); },
@@ -1246,7 +1275,7 @@ const ACT = {
   giftBuy: el => { const r = GIFT.byId[el.dataset.id]; if (!r || DAILY.got.includes(r.id)) return; const W = wallet(), can = W >= r.price;
     modal(`<h2>${esc(r.name)}</h2><div class="tryon">${persoSvg({ vb: r.cat === "decor" ? "-40 -62 480 716" : "60 -70 280 330", cls: "thumb", ...(r.cat === "decor" ? { behind: GIFT.scene(r.v) } : { hair: r.v }) })}</div><p class="big">${r.price} XP</p><p class="small">${can ? `Il te restera ${(W - r.price).toLocaleString("fr")} XP à dépenser. Ton niveau ne change pas.` : `Il te manque ${(r.price - W).toLocaleString("fr")} XP, soit environ ${plural(Math.ceil((r.price - W) / 10), "bonne réponse", "bonnes réponses")}.`}</p><div class="actions center">${can ? `<button class="primary" data-act="giftPay" data-id="${r.id}">Acheter</button>` : ""}<button data-act="closeM">${can ? "Pas maintenant" : "Fermer"}</button></div>`); },
   giftPay: el => { const r = GIFT.byId[el.dataset.id]; if (!r || DAILY.got.includes(r.id) || wallet() < r.price) return; WARD.spent = (WARD.spent || 0) + r.price; save(K_WARD, WARD); DAILY.got.push(r.id); DAILY.equipped[r.cat] = r.id; save(K_DAILY, DAILY); document.querySelector(".modal")?.remove(); render(); toast(`${esc(r.name)} : c'est à toi !`, "ok"); },
-  feedPet: el => { const id = (el && el.dataset && el.dataset.id) || PET.companion, k = isHuman(id) ? ".kidcard" : ".petcard:not(.kidcard)", s0 = isHuman(id) ? ".stagepet.kidbox" : ".stagepet:not(.kidbox)", r = feed(id); render(); if (r.ok) { document.querySelectorAll(`${k} .petbig .pet-svg,${s0} .pet-svg`).forEach(s => s.classList.add("happy")); } if (r.grew) document.querySelectorAll(`${k} .petbig .pet-svg.lg,${s0} .pet-svg:not(.baby)`).forEach(s => s.classList.add("grow")); toast(esc(r.msg), r.baby ? "baby" : r.ok ? "ok" : ""); },
+  feedPet: el => { const id = (el && el.dataset && el.dataset.id) || PET.companion || PET.flyer, k = isHuman(id) ? ".kidcard" : `.compone[data-id="${id}"]`, s0 = isHuman(id) ? ".stagepet.kidbox" : id === PET.flyer ? ".stagepet.flyer" : ".stagepet:not(.kidbox):not(.flyer)", r = feed(id); render(); if (r.ok) { document.querySelectorAll(`${k} .petbig .pet-svg,${s0} .pet-svg`).forEach(s => s.classList.add("happy")); } if (r.grew) document.querySelectorAll(`${k} .petbig .pet-svg.lg,${s0} .pet-svg:not(.baby)`).forEach(s => s.classList.add("grow")); toast(esc(r.msg), r.baby ? "baby" : r.ok ? "ok" : ""); },
   setKid: el => { const id = el.dataset.id; if (!PET.kids.includes(id)) return; PET.kid = PET.kid === id && el.dataset.off ? null : id; save(K_PET, PET); render(); toast(PET.kid ? `Tu gardes ${esc(ANIMAL_BY_ID[id].name)} !` : "De retour à la garderie !", "ok"); },
   pkTab: el => { PTAB = el.dataset.k; render(); },
   pkEdit: () => { PK.edit = !PK.edit; PK.isel = -1; PK.sel = null; if (PK.edit) OPENS.pkshop = true; render(); },
@@ -1264,11 +1293,10 @@ const ACT = {
   kAll: el => { PET.hid = {}; if (el.dataset.d === "0") PET.kids.forEach(id => { PET.hid[id] = 1; }); save(K_PET, PET); render(); },
   kG: el => { KF.g = KF.g === el.dataset.k ? "" : el.dataset.k; KF.n = 60; render(); },
   kF: el => { KF.f = el.dataset.k; KF.n = 60; render(); }, kMore: () => { KF.n += 60; render(); },
-  setComp: el => { const id = el.dataset.id, a = ANIMAL_BY_ID[id], c = ANIMAL_BY_ID[PET.companion]; // un animal terrestre + un animal volant en même temps
-    if (PET.flyer === id || PET.companion === id) { if (PET.flyer === id) PET.flyer = null; render(); save(K_PET, PET); return; }
-    if (FLY(a) && c && !FLY(c)) { PET.flyer = id; save(K_PET, PET); render(); toast(`${esc(a.name)} vole avec toi !`, "ok"); return; }
-    if (!FLY(a) && c && FLY(c)) PET.flyer = PET.companion;
-    PET.companion = id; save(K_PET, PET); render(); toast(`${esc(ANIMAL_BY_ID[el.dataset.id].name)} t'accompagne !`, "ok"); },
+  setComp: el => { const id = el.dataset.id, a = ANIMAL_BY_ID[id]; if (!a) return; // deux places indépendantes : un animal terrestre et un animal volant
+    const k = FLY(a) ? "flyer" : "companion";
+    if (PET[k] === id) { PET[k] = null; save(K_PET, PET); render(); toast(`${esc(a.name)} se repose dans la ménagerie.`); return; }
+    PET[k] = id; save(K_PET, PET); render(); toast(k === "flyer" ? `${esc(a.name)} vole avec toi !` : `${esc(a.name)} t'accompagne !`, "ok"); },
   zoneQuiz: el => { const z = el.dataset.z; let l = (ZQ[z] || []).filter(q => status(q) !== "ok"); if (!l.length) l = ZQ[z] || []; zoneStart(z, l); },
   zonePool: el => zoneStart(el.dataset.z, (ZQ[el.dataset.z] || []).filter(q => status(q) === el.dataset.pool)),
   start: el => startSession(el.dataset.tab, el.dataset.pool),
@@ -1306,13 +1334,14 @@ const ACT = {
   flagQuiz: () => startSession(null, "todo", Object.keys(FLAGS).filter(id => BY_ID[id]), "Questions signalées"),
   copyFlags: async () => { const txt = Object.keys(FLAGS).map(id => BY_ID[id]).filter(Boolean).map(q => `- [${q.id}] ${q.q} → ${q.a}`).join("\n"); try { await navigator.clipboard.writeText(txt); MSG = "Liste copiée : tu peux la coller dans un message."; } catch { MSG = "Copie impossible sur ce navigateur."; } render(); },
   export: () => {
-    const data = { app: "revisions-anat", version: 2, exportedAt: new Date().toISOString(), progress: PROG, flags: FLAGS, corrections: OVR, body: BODY, pet: PET, daily: DAILY, tableaux: TAB, garderobe: WARD, settings: SET };
+    const data = { app: "revisions-anat", version: 2, exportedAt: new Date().toISOString(), progress: PROG, flags: FLAGS, corrections: OVR, body: BODY, pet: PET, daily: DAILY, tableaux: TAB, garderobe: WARD, settings: SET, msp: MSPP };
     const nm = `revisions-anat-progression-${todayKey()}.json`, txt = JSON.stringify(data);
     if (IOS) try { const f = new File([txt], nm, { type: "application/json" }); if (navigator.canShare && navigator.canShare({ files: [f] })) { navigator.share({ files: [f] }).then(() => { MSG = "Progression exportée."; render(); }).catch(() => {}); return; } } catch {}
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type: "application/json" })); a.download = nm;
     document.body.appendChild(a); a.click(); a.remove(); MSG = "Fichier enregistré dans tes Téléchargements."; render();
   },
   import: () => document.getElementById("importFile").click(),
+  toggleMsp: () => { SET.noMsp = !SET.noMsp; save(K_SET, SET); render(); },
   reset: () => { if (!confirm("Effacer toute ta progression de QCM et tes accessoires ? C'est définitif (sauf si tu as un export). Tes animaux sont gardés.")) return; PROG = {}; save(K_PROG, PROG); markSeen(); BODY.got = []; BODY.eq = {}; save(K_BODY, BODY); PET.gear.lv = 1; PET.kibLv = 1; PET.run = PET.bad = 0; WARD.spent = 0; save(K_WARD, WARD); save(K_PET, PET); SESSION = null; saveSession(); MSG = "Progression effacée."; render(); }
 };
 document.addEventListener("click", e => {
@@ -1339,7 +1368,7 @@ document.addEventListener("change", async e => {
     if (!data || data.app !== "revisions-anat" || !data.progress || typeof data.progress !== "object") throw new Error("ce n'est pas un export de Révisions anat");
     if (!confirm("Remplacer ta progression actuelle par celle de ce fichier ?")) return;
     save(K_PROG, data.progress); save(K_FLAG, data.flags || {}); save(K_OVR, data.corrections || {});
-    if (data.body) save(K_BODY, data.body); if (data.pet) save(K_PET, data.pet); if (data.daily) save(K_DAILY, data.daily); if (data.tableaux) save(K_TAB, data.tableaux); if (data.garderobe) save(K_WARD, data.garderobe); if (data.settings) save(K_SET, data.settings);
+    if (data.msp) save(K_MSP, data.msp); if (data.body) save(K_BODY, data.body); if (data.pet) save(K_PET, data.pet); if (data.daily) save(K_DAILY, data.daily); if (data.tableaux) save(K_TAB, data.tableaux); if (data.garderobe) save(K_WARD, data.garderobe); if (data.settings) save(K_SET, data.settings);
     save(K_SESS, null); save(K_SEEN, null); location.reload(); return;
   } catch (err) { MSG = "Import impossible : " + err.message; }
   render();
