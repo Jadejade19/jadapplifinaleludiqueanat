@@ -1,4 +1,4 @@
-const CACHE = "jadjeudanat-v26";
+const CACHE = "jadjeudanat-v34";
 const FILES = ["./", "./index.html", "./style.css", "./app.js", "./corps-art.js", "./accessoires-art.js", "./animals-data.js", "./animals-data2.js", "./animals-data3.js", "./animals-art.js", "./animals-rates.js", "./rigolos-enfants.js", "./rigolos-enfants2.js", "./rigolos-enfants3.js", "./rigolos.js", "./enfants-nouveaux.js", "./enfants-histoires.js", "./enfants-jumeaux.js", "./enfants-jumeaux2.js", "./enfants-jumeaux3.js", "./animaux-nouveaux.js", "./compagnon-art.js", "./tableaux-data.js", "./cadeaux-art.js", "./garde-robe-art.js", "./garde-robe2.js", "./parc.js",
   "./questions.js", "./fiches-images.js", "./manifest.json", "./nunito.woff2", "./icon.svg", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./apple-touch-icon.png"];
 
